@@ -272,11 +272,33 @@ analyzeSEOOpportunities: async (productId) => {
     }
   },
 
+  // ====== HANDLE PRODUCT SUGGESTION ======
+  handleProductSuggestion: async (productName, action) => {
+    try {
+      set({ isLoading: true });
+      const response = await axiosInstance.post("approve-reject-product-suggestions/", {
+        action,
+        product_name: productName
+      });
+      
+      get().showToast(response.data.message || `Product ${action}ed successfully`, "success");
+      return { success: true, message: response.data.message };
+    } catch (error) {
+      console.error(`Error ${action}ing product:`, error);
+      const errorMessage = error.response?.data?.message || `Failed to ${action} product`;
+      get().showToast(errorMessage, "error");
+      return { success: false, message: errorMessage };
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
   // ====== DISCONNECT ======
   disconnect: () => {
     localStorage.removeItem("cachedProducts");
     localStorage.removeItem("accessToken");
     localStorage.removeItem("storeInfo");
+    localStorage.removeItem("email");
     set({
       products: [],
       storeInfo: { name: "", isConnected: false },
@@ -286,29 +308,35 @@ analyzeSEOOpportunities: async (productId) => {
 
   // ====== AUTO RECONNECT ======
   reconnect: async (auto = false) => {
-    const { showToast, fetchProducts } = get();
-    const storedStore = getLocal("storeInfo", null);
+    const storeInfo = getLocal("storeInfo", null);
     const accessToken = localStorage.getItem("accessToken");
+    const email = localStorage.getItem("email");
 
-    if (!storedStore || !accessToken) {
-      if (!auto) showToast("No stored session found.", "error");
-      return;
-    }
-
-    if (!auto) showToast("Reconnecting...", "info");
-
-    try {
-      await fetchProducts(storedStore.name, accessToken);
-      set({ storeInfo: { name: storedStore.name, isConnected: true } });
-      if (!auto) showToast("Reconnected successfully!", "success");
-    } catch (error) {
-      console.error("reconnect error:", error);
-      showToast("Auto-reconnect failed. Please reconnect manually.", "error");
+    if (storeInfo?.name && accessToken) {
+      if (!auto) set({ isLoading: true });
+      try {
+        await get().fetchProducts(
+          storeInfo.name,
+          accessToken,
+          email,
+          false
+        );
+        if (!auto) {
+          get().showToast("Store reconnected successfully", "success");
+        }
+      } catch (error) {
+        console.error("Reconnect error:", error);
+        if (!auto) {
+          get().showToast("Failed to reconnect to store", "error");
+        }
+      } finally {
+        if (!auto) set({ isLoading: false });
+      }
     }
   },
 }));
 
-// ✅ Auto-reconnect on app load (if session stored)
+// Auto-reconnect on app load (if session stored)
 if (typeof window !== "undefined") {
   const storeInfo = localStorage.getItem("storeInfo");
   const accessToken = localStorage.getItem("accessToken");

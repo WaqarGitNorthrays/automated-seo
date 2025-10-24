@@ -152,7 +152,20 @@ export default function ProductReportsPage() {
             </h2>
             
             {selectedProduct.issues_and_proposed_solutions ? (
-              <SolutionView solutions={selectedProduct.issues_and_proposed_solutions} />
+              <SolutionView 
+                solutions={selectedProduct.issues_and_proposed_solutions} 
+                productName={selectedProduct['Product Name']}
+                onStatusChange={(action) => {
+                  // Update the local state to reflect the change
+                  const updatedProducts = products.map(p => 
+                    p.id === selectedProduct.id 
+                      ? { ...p, status: action === 'approve' ? 'APPROVED' : 'REJECTED' }
+                      : p
+                  );
+                  // Update the store with the new status
+                  useProductStore.setState({ products: updatedProducts });
+                }}
+              />
             ) : (
               <AnalysisView issues={selectedProduct.issues} />
             )}
