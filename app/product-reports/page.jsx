@@ -11,6 +11,8 @@ import Pagination from "@/components/Pagination";
 import ProductFilters from "@/components/filters/ProductFilters";
 import parseSolutions from "@/utils/parseSolutions";
 import Navbar from "@/components/Navbar";
+import {Button} from "../../components/ui/button.tsx";
+
 
 export default function ProductReportsPage() {
   const { products, fetchProductsForReports, reportsPagination } = useProductStore();
@@ -46,6 +48,7 @@ export default function ProductReportsPage() {
     active: filters.active !== null ? Boolean(filters.active) : null,
     optimized: filters.optimized !== null ? Boolean(filters.optimized) : null,
     analyzed: filters.analyzed !== null ? Boolean(filters.analyzed) : null,
+    // analyzed: true,
     ...(filters.score_min !== null && { score_min: Number(filters.score_min) }),
     ...(filters.score_max !== null && { score_max: Number(filters.score_max) }),
   });
@@ -57,7 +60,10 @@ export default function ProductReportsPage() {
 
     setLoading(true);
     try {
-      await fetchProductsForReports(page, false, processFilters(newFilters));
+      await fetchProductsForReports(page, false, { 
+        ...newFilters, 
+        analyzed: true 
+      });
     } catch (error) {
       console.error("Error loading products:", error);
     } finally {
@@ -112,6 +118,8 @@ export default function ProductReportsPage() {
   // Check store connection first
   if (!isStoreConnected) {
     return (
+      <>
+      <Navbar title = "Product Reports" />
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center p-8 max-w-md mx-auto">
           <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
@@ -136,18 +144,22 @@ export default function ProductReportsPage() {
             </Link>
         </div>
       </div>
+      </>
     );
   }
 
   // Show loading only when there's an actual data fetch happening
   if (loading && products.length === 0) {
     return (
+      <>
+      <Navbar title = "Product Reports" />
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
           <p className="text-gray-600">Loading products...</p>
         </div>
       </div>
+      </>
     );
   }
 
@@ -213,19 +225,10 @@ export default function ProductReportsPage() {
   // ---------- Main Page ----------
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      {/* <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Product Reports</h1>
-          <span className="text-sm text-gray-500">
-            {products?.length || 0}{" "}
-            {products?.length === 1 ? "product" : "products"} found
-          </span>
-        </div>
-      </header> */}
+      {/* Navbar */}
             <Navbar
-        title="Product Reports"
-      />
+              title="Product Reports"
+            />
 
       <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         {/* Filters */}
@@ -234,6 +237,7 @@ export default function ProductReportsPage() {
             onFilterChange={handleFilterChange}
             onReset={handleResetFilters}
             initialFilters={filters}
+            hideAnalyzed={true}
           />
         </div>
 
@@ -265,12 +269,11 @@ export default function ProductReportsPage() {
             </p>
             <div className="mt-6">
               {isStoreConnected ? (
-                <button
+                <Button
                   onClick={handleResetFilters}
-                  className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  Clear all filters
-                </button>
+                  variant="link"
+                 >
+                </Button>
               ) : (
                 <Link
                   href="/dashboard"

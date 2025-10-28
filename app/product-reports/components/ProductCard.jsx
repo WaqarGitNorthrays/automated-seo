@@ -45,7 +45,7 @@ export default function ProductCard({
         
         <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
           <span className="text-sm text-gray-500">
-            {hasResolution ? 'Resolution Available' : 'Analysis Only'}
+            {hasResolution ? 'Solution Available' : 'Analysis Only'}
           </span>
           <button
             onClick={() => onViewReport(product, hasResolution ? 'solution' : 'analysis')}

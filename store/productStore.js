@@ -261,9 +261,16 @@ fetchProductsForReports: async (page = 1, afterAnalysis = false, filters = {}) =
       throw error;
     } finally {
       if (isSingle) {
-        const updatedAnalyzing = new Set(isProcessingSingle.analyzing);
+        const currentState = get();
+        const updatedAnalyzing = new Set(currentState.isProcessingSingle.analyzing);
         productIdList.forEach(id => updatedAnalyzing.delete(id));
-        set({ isProcessingSingle: { ...isProcessingSingle, analyzing: updatedAnalyzing } });
+        set({ 
+          isProcessingSingle: { 
+            ...currentState.isProcessingSingle, 
+            analyzing: updatedAnalyzing 
+          },
+          isAnalyzing: updatedAnalyzing.size > 0
+        });
       } else {
         set({ isAnalyzing: false });
       }

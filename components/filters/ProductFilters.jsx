@@ -14,7 +14,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Filter, RotateCcw } from "lucide-react";
 
-export const ProductFilters = ({ onFilterChange, onReset, initialFilters = {} }) => {
+export const ProductFilters = ({ onFilterChange, onReset, initialFilters = {}, hideAnalyzed = false}) => {
   const [filters, setFilters] = useState({
     active: initialFilters.active ?? null,
     optimized: initialFilters.optimized ?? null,
@@ -150,6 +150,7 @@ export const ProductFilters = ({ onFilterChange, onReset, initialFilters = {} })
         </div>
 
         {/* Analyzed */}
+        {!hideAnalyzed && (
         <div className="flex flex-col space-y-2">
           <Label className="text-sm text-gray-700">Analyzed</Label>
           <Select
@@ -167,6 +168,7 @@ export const ProductFilters = ({ onFilterChange, onReset, initialFilters = {} })
             </SelectContent>
           </Select>
         </div>
+        )}
 
         {/* SEO Score */}
         <div className="flex flex-col space-y-3">
