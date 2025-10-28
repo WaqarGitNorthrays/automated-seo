@@ -80,16 +80,8 @@ export default function SolutionView({ solutions, productName, onStatusChange })
     );
   }
 
-  let parsedSolutions = [];
-  try {
-    parsedSolutions = typeof solutions === "string" ? JSON.parse(solutions) : [];
-  } catch {
-    return (
-      <div className="text-center py-8 text-red-500">
-        Error loading solutions. Please try again later.
-      </div>
-    );
-  }
+const parsedSolutions = Array.isArray(solutions) ? solutions : [];
+
 
   if (!Array.isArray(parsedSolutions) || parsedSolutions.length === 0) {
     return (
@@ -98,6 +90,7 @@ export default function SolutionView({ solutions, productName, onStatusChange })
       </div>
     );
   }
+console.log("✅ Parsed Solutions in SolutionView:", parsedSolutions);
 
   return (
     <div className="space-y-8" role="region" aria-label="Product solutions">

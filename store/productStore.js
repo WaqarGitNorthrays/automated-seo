@@ -208,9 +208,9 @@ fetchProductsForReports: async (page = 1, afterAnalysis = false, filters = {}) =
       })
     );
 
-    if (afterAnalysis) {
-      get().showToast("Products updated after analysis.", "success");
-    }
+    // if (afterAnalysis) {
+    //   get().showToast("Products updated after analysis.", "success");
+    // }
   } catch (error) {
     console.error("fetchProducts error:", error);
     get().showToast("Failed to fetch products. Please try again.", "error");
@@ -242,15 +242,9 @@ fetchProductsForReports: async (page = 1, afterAnalysis = false, filters = {}) =
         accessToken,
       });
 
-      // Refresh the products list after analysis
-      await get().fetchProductsForReports(
-        storeInfo.name,
-        accessToken,
-        1, // page
-        email,
-        true // afterAnalysis flag
-      );
-      
+      // Refresh the products list after analysis 
+      await get().fetchProductsForReports(1, true);
+
       showToast(
         response.data.message || 
         (isSingle 
@@ -333,6 +327,14 @@ fetchProductsForReports: async (page = 1, afterAnalysis = false, filters = {}) =
 analyzeSEOOpportunities: async (productId) => {
   const { storeInfo, showToast } = get();
   const accessToken = localStorage.getItem("accessToken");
+  
+  // Create a unique key for this request
+  const requestKey = `seo_analysis_${productId}`;
+  
+  // Check if there's an ongoing request for this product
+  if (window[requestKey]) {
+    return window[requestKey];
+  }
 
   if (!storeInfo.name || !accessToken) {
     showToast("Missing store credentials. Please reconnect your store.", "error");
@@ -340,14 +342,20 @@ analyzeSEOOpportunities: async (productId) => {
   }
 
   try {
-    const response = await axiosInstance.post("write-blogs-and-articles/", {
+    // Store the promise to prevent duplicate requests
+    window[requestKey] = axiosInstance.post("write-blogs-and-articles/", {
       product_id: productId,
       // storeName: storeInfo.name,
       // accessToken,
+    }).then(response => {
+      showToast("SEO insights generated successfully!", "success");
+      return response.data;
+    }).finally(() => {
+      // Clean up the stored promise when done
+      delete window[requestKey];
     });
 
-    showToast("SEO insights generated successfully!", "success");
-    return response.data;
+    return await window[requestKey];
   } catch (error) {
     console.error("analyzeSEOOpportunities error:", error);
     const message =
@@ -459,34 +467,44 @@ analyzeSEOOpportunities: async (productId) => {
   },
 
   // ====== AUTO RECONNECT ======
-  reconnect: async (auto = false) => {
-    const storeInfo = getLocal("storeInfo", null);
-    const accessToken = localStorage.getItem("accessToken");
-    const email = localStorage.getItem("email");
+reconnect: async (auto = false) => {
+  const storedInfo = localStorage.getItem("storeInfo");
+  const accessToken = localStorage.getItem("accessToken");
+  const email = localStorage.getItem("email");
 
-    if (storeInfo?.name && accessToken) {
-      if (!auto) set({ isLoading: true });
-      try {
-        const userEmail = email || localStorage.getItem("email") || '';
-        await get().fetchProductsForReports(
-          storeInfo.name,
-          accessToken,
-          1, // Default to page 1
-          userEmail
-        );
-        if (!auto) {
-          get().showToast("Store reconnected successfully", "success");
-        }
-      } catch (error) {
-        console.error("Reconnect error:", error);
-        if (!auto) {
-          get().showToast("Failed to reconnect to store", "error");
-        }
-      } finally {
-        if (!auto) set({ isLoading: false });
+  let storeInfo = null;
+  try {
+    storeInfo = storedInfo ? JSON.parse(storedInfo) : null;
+  } catch {
+    console.warn("⚠️ Invalid storeInfo in localStorage, clearing it.");
+    localStorage.removeItem("storeInfo");
+  }
+
+  if (storeInfo?.name && accessToken) {
+    if (!auto) set({ isLoading: true });
+
+    // ✅ Rehydrate state before fetching
+    set({
+      storeInfo,
+      accessToken,
+      email,
+    });
+
+    try {
+      await get().fetchProductsForReports(1, false, {});
+      if (!auto) {
+        get().showToast("Store reconnected successfully", "success");
       }
+    } catch (error) {
+      console.error("Reconnect error:", error);
+      if (!auto) {
+        get().showToast("Failed to reconnect to store", "error");
+      }
+    } finally {
+      if (!auto) set({ isLoading: false });
     }
-  },
+  }
+},
 }));
 
 // Auto-reconnect on app load (if session stored)

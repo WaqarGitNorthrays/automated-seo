@@ -2,35 +2,52 @@
 
 import { motion } from "framer-motion";
 import { TrendingUp, Users, Globe, Activity, BarChart3 } from "lucide-react";
+import { useGSCStore } from "@/store/gscStore";
 
 export default function DashboardMain() {
-  // Dummy metrics — replace later with dynamic data
+  const { performanceMetrics, isConnected } = useGSCStore();
+  
+  const formatNumber = (num) => {
+    if (num === undefined || num === null) return '-';
+    return num.toLocaleString();
+  };
+  
+  const formatPercentage = (num) => {
+    if (num === undefined || num === null) return '-';
+    return `${(num * 100).toFixed(2)}%`;
+  };
+  
+  const formatPosition = (num) => {
+    if (num === undefined || num === null) return '-';
+    return num.toFixed(1);
+  };
+  
   const metrics = [
     {
       label: "Total Clicks",
-      value: "25.6K",
-      change: "+8.3%",
+      value: isConnected ? formatNumber(performanceMetrics?.total_clicks) : '-',
+      change: "",
       icon: TrendingUp,
       gradient: "from-blue-500 to-indigo-500",
     },
     {
       label: "Total Impressions",
-      value: "98.4K",
-      change: "+3.2%",
+      value: isConnected ? formatNumber(performanceMetrics?.total_impressions) : '-',
+      change: "",
       icon: Globe,
       gradient: "from-teal-500 to-emerald-500",
     },
     {
       label: "CTR",
-      value: "2.9%",
-      change: "-0.5%",
+      value: isConnected ? formatPercentage(performanceMetrics?.average_ctr) : '-',
+      change: "",
       icon: Activity,
       gradient: "from-purple-500 to-pink-500",
     },
     {
       label: "Average Position",
-      value: "18.4",
-      change: "+1.2%",
+      value: isConnected ? formatPosition(performanceMetrics?.average_position) : '-',
+      change: "",
       icon: BarChart3,
       gradient: "from-orange-500 to-rose-500",
     },
@@ -47,7 +64,7 @@ export default function DashboardMain() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
-            Dashboard Overview
+            Website Overview
           </h1>
           <p className="text-gray-500 mt-1">
             A quick look at your key performance metrics and engagement trends.
@@ -101,7 +118,7 @@ export default function DashboardMain() {
       {/* Placeholder Sections */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Chart Placeholder */}
-        <motion.div
+        {/* <motion.div
           whileHover={{ scale: 1.01 }}
           transition={{ duration: 0.2 }}
           className="rounded-2xl bg-white/70 backdrop-blur-xl border border-gray-100 shadow-sm p-6 flex flex-col items-center justify-center text-center"
@@ -115,10 +132,10 @@ export default function DashboardMain() {
           <div className="h-40 w-full border border-dashed border-gray-200 rounded-xl flex items-center justify-center text-gray-400 text-sm">
             Chart Placeholder
           </div>
-        </motion.div>
+        </motion.div> */}
 
         {/* Engagement Placeholder */}
-        <motion.div
+        {/* <motion.div
           whileHover={{ scale: 1.01 }}
           transition={{ duration: 0.2 }}
           className="rounded-2xl bg-white/70 backdrop-blur-xl border border-gray-100 shadow-sm p-6 flex flex-col items-center justify-center text-center"
@@ -132,7 +149,7 @@ export default function DashboardMain() {
           <div className="h-40 w-full border border-dashed border-gray-200 rounded-xl flex items-center justify-center text-gray-400 text-sm">
             Insights Placeholder
           </div>
-        </motion.div>
+        </motion.div> */}
       </div>
     </motion.div>
   );

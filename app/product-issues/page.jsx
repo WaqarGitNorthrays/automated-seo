@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useProductStore } from "@/store/productStore";
 import Navbar from "@/components/Navbar";
@@ -40,7 +40,7 @@ export default function ProductIssues() {
     score_min: null,
     score_max: null,
   });
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -92,26 +92,6 @@ const connectStore = async ({ storeName, accessToken, email }) => {
     updateFilters(resetFilters);
     fetchProductsForReports(1, false, resetFilters);
   };
-
-  // ✅ Auto reconnect from localStorage
-  useEffect(() => {
-    const initializeStore = async () => {
-      const storedStore = localStorage.getItem("storeInfo");
-      const accessToken = localStorage.getItem("accessToken");
-      if (storedStore && accessToken) {
-        try {
-          const parsedStore = JSON.parse(storedStore);
-          if (parsedStore.isConnected) {
-            await reconnect(parsedStore.name, accessToken);
-            await fetchProductsForReports(1);
-          }
-        } catch (error) {
-          console.error("Error auto-loading store:", error);
-        }
-      }
-    };
-    initializeStore();
-  }, [reconnect, fetchProductsForReports]);
 
   const isProcessingDerived = isAnalyzing || isResolving || isProcessing;
   const isStoreConnected = storeInfo?.isConnected;

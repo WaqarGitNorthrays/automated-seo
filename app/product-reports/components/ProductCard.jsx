@@ -48,10 +48,10 @@ export default function ProductCard({
             {hasResolution ? 'Resolution Available' : 'Analysis Only'}
           </span>
           <button
-            onClick={() => onViewReport(product)}
+            onClick={() => onViewReport(product, hasResolution ? 'solution' : 'analysis')}
             className="text-sm font-medium text-blue-600 hover:text-blue-800 flex items-center"
           >
-            View {hasResolution ? 'Resolution' : 'Analysis'}
+            View {hasResolution ? 'Solution' : 'Analysis'}
             <ArrowRight className="ml-1 w-4 h-4" />
           </button>
         </div>

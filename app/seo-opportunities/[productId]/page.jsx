@@ -72,12 +72,20 @@ export default function SEOOpportunitiesPage() {
     );
 
   // ====== No Opportunities ======
-  if (!data || !data.opportunities?.length)
+  if (!data || !data.opportunities?.length) {
+    const message = data?.message || `No SEO opportunities found for ${productName}.`;
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center text-gray-600 px-6 text-center">
-        <h2 className="text-xl font-semibold">No SEO opportunities found for {productName}.</h2>
+      <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
+        <h2 className="text-xl font-semibold text-gray-700 mb-4">{message}</h2>
+        <Link
+          href="/product-issues"
+          className="mt-4 inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 transition"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to Products
+        </Link>
       </div>
     );
+  }
 
   // ====== Main Content ======
   return (

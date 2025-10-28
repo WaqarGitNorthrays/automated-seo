@@ -10,6 +10,7 @@ export const useGSCStore = create(
       isConnected: false,
       isLoading: false,
       metrics: null,
+      performanceMetrics: null,
       issues: [],
       toast: null,
 
@@ -54,6 +55,20 @@ export const useGSCStore = create(
       },
 
       // --- Connect Website ---
+      // Fetch website performance data
+      fetchWebsitePerformance: async (websiteUrl) => {
+        try {
+          const response = await axiosInstance.get(`complete-website-performance/?url=${encodeURIComponent(websiteUrl)}`);
+          if (response.data?.success) {
+            set({ performanceMetrics: response.data.summary });
+          }
+          return response.data?.summary || null;
+        } catch (error) {
+          console.error('Error fetching website performance:', error);
+          return null;
+        }
+      },
+
       connectWebsite: async (websiteUrl) => {
         if (!websiteUrl) {
           get().showToast('Please enter a valid Website URL', 'error');
@@ -70,6 +85,9 @@ export const useGSCStore = create(
           ]);
 
           const normalizedIssues = get().normalizeIssues(issuesRes.data?.website_issues);
+          
+          // Fetch performance data after successful connection
+          await get().fetchWebsitePerformance(websiteUrl);
 
           set({
             metrics: {
@@ -188,8 +206,9 @@ export const useGSCStore = create(
           websiteUrl: '',
           isConnected: false,
           metrics: null,
+          performanceMetrics: null,
           issues: [],
-          toast: null,
+          isLoading: false,
         });
       },
     }),
