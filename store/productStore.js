@@ -17,10 +17,35 @@ const getLocal = (key, fallback) => {
 export const useProductStore = create((set, get) => ({
   // ====== STATE ======
   products: getLocal("cachedProducts", []),
+  reportsPagination: {
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10
+  },
+  pagination: {
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10
+  },
+  filters: {
+    optimized: null,
+    active: null,
+    analyzed: null,
+    score_min: null,
+    score_max: null
+  },
   storeInfo: getLocal("storeInfo", { name: "", isConnected: false }),
+  accessToken: getLocal("accessToken", ""),
+  email: getLocal("email", ""),
   isLoading: false,
-  isAnalyzing: false,
-  isResolving: false,
+  isAnalyzing: false,      // For bulk analyze
+  isResolving: false,     // For bulk resolve
+  isProcessingSingle: {   // For single product operations
+    analyzing: new Set(),
+    resolving: new Set()
+  },
   toast: null,
 
   // ====== TOAST ======
@@ -30,75 +55,178 @@ export const useProductStore = create((set, get) => ({
   },
 
   // ====== FETCH PRODUCTS ======
-  fetchProducts: async (storeName, accessToken, email, afterAnalysis = false) => {
-    try {
-      set({ isLoading: true });
-      const response = await axiosInstance.post("fetch-products/", {
-        storeName,
-        accessToken,
-        email,
-      });
-      const productsData = response.data.products || [];
-      set({ products: productsData });
-      localStorage.setItem("cachedProducts", JSON.stringify(productsData));
-
-      if (afterAnalysis)
-        get().showToast("Products updated after analysis.", "success");
-    } catch (error) {
-      console.error("fetchProducts error:", error);
-      get().showToast("Failed to fetch products. Please try again.", "error");
-    } finally {
-      set({ isLoading: false });
-    }
+  // ====== UPDATE FILTERS ======
+  updateFilters: (newFilters) => {
+    set(state => ({
+      filters: { ...state.filters, ...newFilters }
+    }));
   },
 
-  // ====== CONNECT STORE ======
-  connectStore: async ({ storeName, accessToken, email }) => {
-    try {
-      set({ isLoading: true });
+  // ====== RESET FILTERS ======
+  resetFilters: () => {
+    set({
+      filters: {
+        optimized: null,
+        active: null,
+        analyzed: null,
+        score_min: null,
+        score_max: null
+      }
+    });
+  },
 
-      const response = await axiosInstance.post("fetch-products/", {
-        storeName,
-        accessToken,
-        email,  // Include email in the API call
-      });
 
-      if (accessToken) localStorage.setItem("accessToken", accessToken);
-      if(email) localStorage.setItem("email", email);
 
-      const productsData = response.data.products || [];
-      const info = { 
-        name: storeName, 
-        email,  // Store email in the store info
-        isConnected: true 
-      };
+// ====== CONNECT STORE ======
+connectStore: async ({ storeName, accessToken, email }) => {
+  try {
+    set({ isLoading: true });
 
-      set({
+    // ✅ Prepare connection info
+    const info = {
+      name: storeName,
+      email,
+      isConnected: true,
+    };
+
+    // ✅ Save store data in Zustand + localStorage
+    set({
+      storeInfo: info,
+      accessToken,
+      email,
+    });
+
+    localStorage.setItem("storeInfo", JSON.stringify(info));
+    localStorage.setItem("accessToken", accessToken);
+    localStorage.setItem("email", email);
+
+    // ✅ Initial product fetch (no filters)
+    const response = await axiosInstance.post("fetch-products/", {
+      storeName,
+      accessToken,
+      email,
+    });
+
+    const productsData = response.data.products || [];
+    const paginationData = {
+      currentPage: response.data.page || 1,
+      totalPages: response.data.total_pages || 1,
+    };
+
+    // ✅ Update Zustand state
+    set({
+      products: productsData,
+      reportsPagination: paginationData,
+    });
+
+    localStorage.setItem(
+      "cachedProducts",
+      JSON.stringify({
         products: productsData,
-        storeInfo: info,
-      });
+        ...paginationData,
+      })
+    );
 
-      localStorage.setItem("cachedProducts", JSON.stringify(productsData));
-      localStorage.setItem("storeInfo", JSON.stringify(info));
+    get().showToast("Store connected successfully", "success");
+  } catch (error) {
+    console.error("connectStore error:", error);
+    get().showToast("Failed to connect to store.", "error");
+  } finally {
+    set({ isLoading: false });
+  }
+},
 
-      get().showToast(
-        response.data.message || "Store connected successfully",
-        "success"
-      );
-    } catch (error) {
-      console.error("connectStore error:", error);
-      get().showToast("Failed to connect to store.", "error");
-    } finally {
-      set({ isLoading: false });
+
+// ====== FETCH PRODUCTS ======
+fetchProductsForReports: async (page = 1, afterAnalysis = false, filters = {}) => {
+  try {
+    let { storeInfo, accessToken, email } = get();
+
+    // ✅ Attempt auto-restore if credentials missing
+    if (!storeInfo?.name || !accessToken || !email) {
+      const savedInfo = JSON.parse(localStorage.getItem("storeInfo") || "{}");
+      const savedAccessToken = localStorage.getItem("accessToken");
+      const savedEmail = localStorage.getItem("email");
+
+      if (savedInfo?.name && savedAccessToken && savedEmail) {
+        set({
+          storeInfo: savedInfo,
+          accessToken: savedAccessToken,
+          email: savedEmail,
+        });
+        storeInfo = savedInfo;
+        accessToken = savedAccessToken;
+        email = savedEmail;
+        console.log("🔄 Restored store credentials from localStorage");
+      } else {
+        console.warn("⚠️ Missing store credentials — skipping fetch");
+        return;
+      }
     }
-  },
+
+    set({ isLoading: true });
+
+    const pageNumber = page && !isNaN(page) ? Number(page) : 1;
+
+    // ✅ Resolve storeName correctly
+    const storeName =
+      typeof storeInfo?.name === "object"
+        ? storeInfo?.name?.storeName
+        : storeInfo?.name;
+
+    // ✅ Build clean payload (only include active filters)
+    const payload = {
+      storeName,
+      accessToken,
+      email,
+      page: pageNumber,
+      ...(filters?.active !== undefined && { active: filters.active }),
+      ...(filters?.optimized !== undefined && { optimized: filters.optimized }),
+      ...(filters?.analyzed !== undefined && { analyzed: filters.analyzed }),
+      ...(filters?.score_min !== undefined && { score_min: filters.score_min }),
+      ...(filters?.score_max !== undefined && { score_max: filters.score_max }),
+    };
+
+    const response = await axiosInstance.post("fetch-products/", payload);
+
+    const productsData = response.data.products || [];
+    const paginationData = {
+      currentPage: response.data.page || 1,
+      totalPages: response.data.total_pages || 1,
+    };
+
+    set({
+      products: productsData,
+      reportsPagination: paginationData,
+    });
+
+    localStorage.setItem(
+      "cachedProducts",
+      JSON.stringify({
+        products: productsData,
+        ...paginationData,
+      })
+    );
+
+    if (afterAnalysis) {
+      get().showToast("Products updated after analysis.", "success");
+    }
+  } catch (error) {
+    console.error("fetchProducts error:", error);
+    get().showToast("Failed to fetch products. Please try again.", "error");
+  } finally {
+    set({ isLoading: false });
+  }
+},
+
 
   // ====== ANALYZE PRODUCTS ======
   analyzeProducts: async (productIds) => {
-    const { storeInfo, fetchProducts, showToast } = get();
+    const { storeInfo, showToast } = get();
     const accessToken = localStorage.getItem("accessToken");
+    const email = localStorage.getItem("email") || '';
 
-    if (!storeInfo.name || !accessToken) {
+    if (!storeInfo?.name || !accessToken) {
       showToast("Access token missing. Please reconnect your store.", "error");
       return;
     }
@@ -106,7 +234,7 @@ export const useProductStore = create((set, get) => ({
     const isSingle = Array.isArray(productIds) ? productIds.length === 1 : true;
     const productIdList = Array.isArray(productIds) ? productIds : [productIds];
 
-    // set({ isAnalyzing: true });
+    set({ isAnalyzing: true });
     try {
       const response = await axiosInstance.post("analyze-single-multiple-products/", {
         product_ids: productIdList,
@@ -114,7 +242,14 @@ export const useProductStore = create((set, get) => ({
         accessToken,
       });
 
-      await fetchProducts(storeInfo.name, accessToken, true);
+      // Refresh the products list after analysis
+      await get().fetchProductsForReports(
+        storeInfo.name,
+        accessToken,
+        1, // page
+        email,
+        true // afterAnalysis flag
+      );
       
       showToast(
         response.data.message || 
@@ -131,13 +266,19 @@ export const useProductStore = create((set, get) => ({
       showToast(errorMessage, "error");
       throw error;
     } finally {
-      // set({ isAnalyzing: false });
+      if (isSingle) {
+        const updatedAnalyzing = new Set(isProcessingSingle.analyzing);
+        productIdList.forEach(id => updatedAnalyzing.delete(id));
+        set({ isProcessingSingle: { ...isProcessingSingle, analyzing: updatedAnalyzing } });
+      } else {
+        set({ isAnalyzing: false });
+      }
     }
   },
 
   // ====== ANALYZE ALL ======
   analyzeAll: async () => {
-    const { storeInfo, analyzeProducts, showToast } = get();
+    const { storeInfo, showToast } = get();
     const accessToken = localStorage.getItem("accessToken");
 
     if (!storeInfo.name || !accessToken) {
@@ -152,7 +293,8 @@ export const useProductStore = create((set, get) => ({
         accessToken,
       });
       showToast(response.data.message || "Product analysis started.", "success");
-      await fetchProducts(storeInfo.name, accessToken, true);
+      // Refresh the products list after analysis
+      await get().fetchProductsForReports(1, true, {});
     } catch (error) {
       console.error("analyzeAll error:", error);
       showToast("Failed to analyze products.", "error");
@@ -163,7 +305,7 @@ export const useProductStore = create((set, get) => ({
 
   // ====== RESOLVE ALL ======
   resolveAll: async () => {
-    const { storeInfo, fetchProducts, showToast } = get();
+    const { storeInfo, showToast } = get();
     const accessToken = localStorage.getItem("accessToken");
 
     if (!storeInfo.name || !accessToken) {
@@ -200,8 +342,8 @@ analyzeSEOOpportunities: async (productId) => {
   try {
     const response = await axiosInstance.post("write-blogs-and-articles/", {
       product_id: productId,
-      storeName: storeInfo.name,
-      accessToken,
+      // storeName: storeInfo.name,
+      // accessToken,
     });
 
     showToast("SEO insights generated successfully!", "success");
@@ -219,7 +361,7 @@ analyzeSEOOpportunities: async (productId) => {
 
   // ====== RESOLVE PRODUCTS ======
   resolveProducts: async (productIds) => {
-    const { products, storeInfo, fetchProducts, showToast } = get();
+    const { products, storeInfo, fetchProductsForReports, showToast } = get();
     const accessToken = localStorage.getItem("accessToken");
     const email = localStorage.getItem("email");
 
@@ -250,8 +392,8 @@ analyzeSEOOpportunities: async (productId) => {
         accessToken,
       });
 
-
-      await fetchProducts(storeInfo.name, accessToken, email);
+      // Refresh the products list after resolving
+      await get().fetchProductsForReports(storeInfo.name, accessToken, 1, email, true);
       
       showToast(
         response.data.message || 
@@ -266,6 +408,16 @@ analyzeSEOOpportunities: async (productId) => {
       console.error("resolveProducts error:", error);
       const errorMessage = error.response?.data?.error || "Failed to resolve product issues.";
       showToast(errorMessage, "error");
+      
+      // Reset loading states on error
+      if (isSingle) {
+        const updatedResolving = new Set(isProcessingSingle.resolving);
+        productIdList.forEach(id => updatedResolving.delete(id));
+        set({ isProcessingSingle: { ...isProcessingSingle, resolving: updatedResolving } });
+      } else {
+        set({ isResolving: false });
+      }
+      
       throw error;
     } finally {
       set({ isResolving: false });
@@ -315,11 +467,12 @@ analyzeSEOOpportunities: async (productId) => {
     if (storeInfo?.name && accessToken) {
       if (!auto) set({ isLoading: true });
       try {
-        await get().fetchProducts(
+        const userEmail = email || localStorage.getItem("email") || '';
+        await get().fetchProductsForReports(
           storeInfo.name,
           accessToken,
-          email,
-          false
+          1, // Default to page 1
+          userEmail
         );
         if (!auto) {
           get().showToast("Store reconnected successfully", "success");

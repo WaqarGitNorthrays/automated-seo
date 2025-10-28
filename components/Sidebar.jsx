@@ -17,7 +17,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const navigationItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Product Issues", href: "/product-issues", icon: Package },
+  { name: "Products", href: "/product-issues", icon: Package },
   { name: "Reports", href: "/product-reports", icon: FileText },
   { name: "GSC Metrics", href: "/gsc-metrics", icon: BarChart3 },
   { name: "How to Use", href: "/how-to-use", icon: HelpCircle },
@@ -58,8 +58,8 @@ export default function Sidebar() {
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <div>
                 <h1 className="text-xl font-semibold text-gray-900 tracking-tight flex items-center gap-1">
-                  SEO Pilot
-                  <Sparkles className="w-4 h-4 text-blue-500" />
+                  SEO Expert
+                  {/* <Sparkles className="w-4 h-4 text-blue-500" /> */}
                 </h1>
                 <p className="text-xs text-gray-500 mt-1">AI-Powered SEO Suite</p>
               </div>

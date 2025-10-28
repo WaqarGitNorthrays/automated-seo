@@ -1,34 +1,64 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import ProductRow from "./ProductRow";
 import EmptyState from "./EmptyState";
 import { TableSkeleton } from "./Loader";
-import { Package, CheckCircle, Loader2, Search, Sparkles } from "lucide-react";
+import { Package, CheckCircle, Loader2, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "./ui/button";
+import Pagination from "./Pagination";
+const memo = require("react").memo;
 
-export default function ProductTable({
-  products,
+const ProductTable = memo(function ProductTable({
+  products = [],
   isLoading,
   onView,
   onResolve,
   onAnalyze,
-  isProcessing,
+  pagination: propPagination = {},
+  onPageChange = () => {},
+  isProcessing = false,
 }) {
+  // Always call hooks at the top level and unconditionally
   const router = useRouter();
   const [selectedProducts, setSelectedProducts] = useState(new Set());
+  
+  // Handle SEO click to navigate to SEO opportunities page
+  const handleSeoClick = useCallback((productId) => {
+    const encodedId = encodeURIComponent(productId);
+    router.push(`/seo-opportunities/${encodedId}?status=loading`);
+  }, [router]);
   const [processingProducts, setProcessingProducts] = useState(new Set());
   const [lastSelectedId, setLastSelectedId] = useState(null);
   const [currentAction, setCurrentAction] = useState(null);
-
-  // ✅ Select / Deselect single product
+  const tableRef = useRef(null);
+  
+  // Memoize product IDs and pagination
+  const productIds = useMemo(() => products.map((p) => p.id), [products]);
+  const pagination = useMemo(() => ({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: products.length,
+    ...propPagination
+  }), [propPagination, products.length]);
+  
+  // Calculate derived state
+  const { selectedCount, totalCount, isAllSelected, isIndeterminate } = useMemo(
+    () => ({
+      selectedCount: selectedProducts.size,
+      totalCount: products.length,
+      isAllSelected: selectedProducts.size > 0 && selectedProducts.size === products.length,
+      isIndeterminate: selectedProducts.size > 0 && selectedProducts.size < products.length,
+    }),
+    [selectedProducts.size, products.length]
+  );
+  
   const toggleProductSelection = useCallback(
     (productId, isShiftKey = false) => {
       setSelectedProducts((prev) => {
         const newSelection = new Set(prev);
-        const productIds = products.map((p) => p.id);
 
         if (isShiftKey && lastSelectedId) {
           const lastIndex = productIds.indexOf(lastSelectedId);
@@ -52,36 +82,61 @@ export default function ProductTable({
       });
       setLastSelectedId(productId);
     },
-    [lastSelectedId, products]
+    [lastSelectedId, productIds]
   );
 
-  // ✅ Select/Deselect All
+  ProductTable.displayName = "ProductTable";
+
+  const productRows = useMemo(() => {
+    if (!Array.isArray(products)) return null;
+
+    return products.map((product) => (
+      <div key={product.id} className="relative group">
+        <ProductRow
+          product={{
+            id: product.id,
+            name: product["Product Name"],
+            seoScore: product["SEO Score"],
+            status: product.status,
+            issues: product.issues,
+          }}
+          isSelected={selectedProducts.has(product.id)}
+          onSelect={(e) => toggleProductSelection(product.id, e.shiftKey)}
+          onView={() => onView(product)}
+          onResolve={onResolve}
+          onSeoClick={() => handleSeoClick(product.id)}
+          isProcessing={processingProducts.has(product.id)}
+          processingAction={
+            processingProducts.has(product.id) ? currentAction : null
+          }
+        />
+      </div>
+    ));
+  }, [products, selectedProducts, processingProducts, currentAction, onView, onResolve, toggleProductSelection, handleSeoClick]);
+  ProductTable.displayName = "ProductTable";
+
+  useEffect(() => {
+    if (tableRef.current && selectedProducts.size > 0) {
+      const focusable = tableRef.current.querySelector("button, [tabindex]");
+      if (focusable) focusable.focus();
+    }
+  }, [selectedProducts.size]);
+
   const toggleSelectAll = useCallback(() => {
     if (selectedProducts.size === products.length) {
       setSelectedProducts(new Set());
     } else {
-      setSelectedProducts(new Set(products.map((p) => p.id)));
+      setSelectedProducts(new Set(productIds));
     }
-  }, [products, selectedProducts.size]);
+  }, [products.length, selectedProducts.size, productIds]);
 
   const clearSelection = useCallback(() => {
     setSelectedProducts(new Set());
     setLastSelectedId(null);
   }, []);
 
-  // ✅ Bulk Analyze / Resolve
   const handleBulkAction = async (actionType) => {
     if (selectedProducts.size === 0) return;
-
-    const actionText =
-      actionType === "resolve" ? "resolve issues for" : "analyze";
-    // const confirmed = window.confirm(
-    //   `Do you want to ${actionText} ${selectedProducts.size} selected product${
-    //     selectedProducts.size > 1 ? "s" : ""
-    //   }?`
-    // );
-
-    // if (!confirmed) return;
 
     const productIds = Array.from(selectedProducts);
     setCurrentAction(actionType);
@@ -102,42 +157,35 @@ export default function ProductTable({
     }
   };
 
-  // ✅ Loading State
-  if (isLoading) return <TableSkeleton rows={5} />;
+  // Show loading state
+  if (isLoading) {
+    return <TableSkeleton rows={5} />;
+  }
 
-  // ✅ Empty State
-  if (!products || products.length === 0)
+  // Show empty state
+  if (products.length === 0) {
     return (
-      <AnimatePresence mode="wait">
+      <AnimatePresence>
         <motion.div
-          key="empty"
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.3 }}
+          role="status"
+          aria-live="polite"
+          aria-label="No products found"
         >
           <EmptyState
             icon={Package}
-            title="No Products Found"
-            description="Connect your Shopify store to begin analyzing products for SEO opportunities."
-            action={
-              <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow">
-                Connect Store
-              </button>
-            }
+            title="No products found"
+            description="Try adjusting your filters or connect your store to get started."
           />
         </motion.div>
       </AnimatePresence>
     );
-
-  // ✅ Derived Selection State
-  const selectedCount = selectedProducts.size;
-  const totalCount = products.length;
-  const isAllSelected = selectedCount > 0 && selectedCount === totalCount;
-  const isIndeterminate = selectedCount > 0 && selectedCount < totalCount;
+  }
 
   return (
-    <div className="space-y-6 relative">
+    <div className="space-y-6 relative" ref={tableRef}>
       {/* ✅ Floating Selection Bar */}
       <AnimatePresence>
         {selectedCount > 0 && (
@@ -156,11 +204,11 @@ export default function ProductTable({
                   if (input) input.indeterminate = isIndeterminate;
                 }}
                 onChange={toggleSelectAll}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
               />
-              <span className="text-sm font-medium text-gray-700">
+              <label className="text-sm font-medium text-gray-700 cursor-pointer">
                 {selectedCount} selected of {totalCount}
-              </span>
+              </label>
               <button
                 onClick={clearSelection}
                 className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
@@ -174,7 +222,7 @@ export default function ProductTable({
                 size="sm"
                 variant="outline"
                 onClick={clearSelection}
-                className="rounded-full border-gray-300"
+                className="rounded-full"
               >
                 Cancel
               </Button>
@@ -189,12 +237,12 @@ export default function ProductTable({
                 {currentAction === "analyze" && processingProducts.size > 0 ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Analyzing {processingProducts.size}...
+                    <span>Analyzing...</span>
                   </>
                 ) : (
                   <>
                     <Search className="w-4 h-4" />
-                    Analyze {selectedCount}
+                    <span>Analyze {selectedCount}</span>
                   </>
                 )}
               </Button>
@@ -208,12 +256,12 @@ export default function ProductTable({
                 {currentAction === "resolve" && processingProducts.size > 0 ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Resolving {processingProducts.size}...
+                    <span>Resolving...</span>
                   </>
                 ) : (
                   <>
                     <CheckCircle className="w-4 h-4" />
-                    Resolve {selectedCount}
+                    <span>Resolve {selectedCount}</span>
                   </>
                 )}
               </Button>
@@ -222,40 +270,30 @@ export default function ProductTable({
         )}
       </AnimatePresence>
 
-      {/* ✅ Product List */}
+      {/* ✅ Product Rows */}
       <motion.div
+        className="mb-6 grid grid-cols-1 gap-5 sm:gap-6"
         layout
-        className="grid grid-cols-1 gap-5 sm:gap-6"
         transition={{ layout: { duration: 0.3 } }}
       >
         <AnimatePresence mode="popLayout">
-          {products.map((product) => (
-            <div key={product.id} className="relative group">
-              <ProductRow
-                product={{
-                  id: product.id,
-                  name: product["Product Name"],
-                  seoScore: product["SEO Score"],
-                  status: product.status,
-                  issues: product.issues,
-                }}
-                isSelected={selectedProducts.has(product.id)}
-                onSelect={(e) => toggleProductSelection(product.id, e.shiftKey)}
-                onView={() => onView(product)}
-                onResolve={onResolve}
-                onSeoClick={() => {
-                  const encodedId = encodeURIComponent(product.id);
-                  router.push(`/seo-opportunities/${encodedId}?status=loading`);
-                }}
-                isProcessing={processingProducts.has(product.id)}
-                processingAction={
-                  processingProducts.has(product.id) ? currentAction : null
-                }
-              />
-            </div>
-          ))}
+          {productRows}
         </AnimatePresence>
       </motion.div>
+
+      {/* Pagination */}
+      {pagination && pagination.totalPages > 1 && (
+        <div className="mt-6 flex items-center justify-between px-2">
+          <Pagination
+            currentPage={pagination.currentPage}
+            totalPages={pagination.totalPages}
+            onPageChange={onPageChange}
+            className="w-full"
+          />
+        </div>
+      )}
     </div>
   );
-}
+});
+
+export default ProductTable;

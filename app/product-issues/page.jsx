@@ -7,41 +7,103 @@ import Navbar from "@/components/Navbar";
 import ProductTable from "@/components/ProductTable";
 import ProductModal from "@/components/ProductModal";
 import ConnectStoreDialog from "@/components/ConnectStoreDialog";
-import { Loader2, Store, WifiOff } from "lucide-react";
+import { Loader2, WifiOff } from "lucide-react";
+import { Button } from "@/components/ui/button.tsx";
+import ProductFilters from "@/components/filters/ProductFilters";
 
 export default function ProductIssues() {
   const {
     products,
+    fetchProductsForReports,
     storeInfo,
-    toast,
-    isLoading,
+    reportsPagination,
     isAnalyzing,
-    isResolving,
-    connectStore,
-    analyzeAll,
     analyzeProducts,
-    resolveAll,
+    isResolving,
     resolveProducts: resolveSingle,
+    analyzeAll,
+    resolveAll,
     disconnect,
     reconnect,
-    fetchProducts,
+    isLoading,
+    toast,
+    showToast,
+    updateFilters,
+    isProcessingSingle = { analyzing: new Set(), resolving: new Set() },
   } = useProductStore();
 
-  const [selectedProduct, setSelectedProduct] = useState(null);
+  // Local UI state
+  const [filters, setFilters] = useState({
+    optimized: null,
+    active: true,
+    analyzed: null,
+    score_min: null,
+    score_max: null,
+  });
+  const [showFilters, setShowFilters] = useState(true);
   const [showConnectDialog, setShowConnectDialog] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Auto reconnect and load
+
+
+// ✅ Simplified connectStore — no need to call fetchProductsForReports manually
+const connectStore = async ({ storeName, accessToken, email }) => {
+  setIsProcessing(true);
+  try {
+    // Connect store and automatically fetch products (handled inside store)
+    await useProductStore.getState().connectStore({
+      storeName,
+      accessToken,
+      email,
+    });
+
+    // ✅ Close dialog after success
+    setShowConnectDialog(false);
+  } catch (error) {
+    console.error("Error connecting store:", error);
+    showToast({
+      type: "error",
+      message: "Failed to connect store. Please try again.",
+    });
+  } finally {
+    setIsProcessing(false);
+  }
+};
+
+
+
+  // ✅ Simplified pagination handler
+  const handlePageChange = async (newPage) => {
+    const pageNumber = newPage && !isNaN(Number(newPage)) ? Number(newPage) : 1;
+    await fetchProductsForReports(pageNumber, false, filters);
+  };
+
+  // ✅ Simplified filter change handler
+  const handleFilterChange = (newFilters) => {
+    setFilters(newFilters);
+    updateFilters(newFilters);
+    fetchProductsForReports(1, false, newFilters);
+  };
+
+  // ✅ Simplified reset filters
+  const handleResetFilters = (resetFilters) => {
+    setFilters(resetFilters);
+    updateFilters(resetFilters);
+    fetchProductsForReports(1, false, resetFilters);
+  };
+
+  // ✅ Auto reconnect from localStorage
   useEffect(() => {
     const initializeStore = async () => {
       const storedStore = localStorage.getItem("storeInfo");
       const accessToken = localStorage.getItem("accessToken");
-
       if (storedStore && accessToken) {
         try {
           const parsedStore = JSON.parse(storedStore);
           if (parsedStore.isConnected) {
             await reconnect(parsedStore.name, accessToken);
-            await fetchProducts(parsedStore.name, accessToken);
+            await fetchProductsForReports(1);
           }
         } catch (error) {
           console.error("Error auto-loading store:", error);
@@ -49,14 +111,14 @@ export default function ProductIssues() {
       }
     };
     initializeStore();
-  }, [reconnect, fetchProducts]);
+  }, [reconnect, fetchProductsForReports]);
 
-  // Smooth fade for content load
-  const isProcessing = isAnalyzing || isResolving;
+  const isProcessingDerived = isAnalyzing || isResolving || isProcessing;
+  const isStoreConnected = storeInfo?.isConnected;
 
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-[#f9fafc] via-[#f5f7fa] to-[#eef1f5] text-gray-900 overflow-hidden">
-      {/* ✨ Subtle blurred background accent */}
+      {/* ✨ Background accents */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-[-200px] left-[40%] h-[600px] w-[600px] rounded-full bg-blue-200/30 blur-3xl"></div>
         <div className="absolute bottom-[-300px] right-[30%] h-[500px] w-[500px] rounded-full bg-purple-200/20 blur-3xl"></div>
@@ -69,6 +131,7 @@ export default function ProductIssues() {
         isConnected={storeInfo.isConnected}
         isAnalyzing={isAnalyzing}
         isResolving={isResolving}
+        processingSingle={isProcessingSingle}
         onConnect={() => setShowConnectDialog(true)}
         onReconnect={reconnect}
         onAnalyzeAll={analyzeAll}
@@ -78,8 +141,7 @@ export default function ProductIssues() {
 
       {/* ⚙️ Content area */}
       <main className="relative z-10 container mx-auto max-w-6xl px-6 pb-24 pt-12">
-        {/* Page Title */}
-        <div className="mb-10 text-center">
+        <div className="mb-6 text-center">
           <motion.h1
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -93,7 +155,28 @@ export default function ProductIssues() {
           </p>
         </div>
 
-        {/* 🩺 Conditional state: Loading / Not Connected / Table */}
+        {/* Product Filters */}
+        {isStoreConnected && (
+          <div className="mb-6">
+            <Button
+              variant="outline"
+              onClick={() => setShowFilters(!showFilters)}
+              className="mb-4"
+            >
+              {showFilters ? "Hide Filters" : "Show Filters"}
+            </Button>
+
+            {showFilters && (
+              <ProductFilters
+                initialFilters={filters}
+                onFilterChange={handleFilterChange}
+                onReset={handleResetFilters}
+              />
+            )}
+          </div>
+        )}
+
+        {/* 🩺 Conditional states */}
         <AnimatePresence mode="wait">
           {isLoading ? (
             <motion.div
@@ -106,7 +189,7 @@ export default function ProductIssues() {
               <Loader2 className="h-8 w-8 animate-spin text-blue-500 mb-3" />
               <p>Loading your products…</p>
             </motion.div>
-          ) : !storeInfo.isConnected ? (
+          ) : !isStoreConnected ? (
             <motion.div
               key="not-connected"
               initial={{ opacity: 0 }}
@@ -121,15 +204,11 @@ export default function ProductIssues() {
                 No Store Connected
               </h2>
               <p className="text-gray-500 text-sm max-w-xs mb-6">
-                Connect your Shopify store to begin automatic product analysis
-                and SEO monitoring.
+                Connect your Shopify store to begin automatic product analysis and SEO monitoring.
               </p>
-              <button
-                onClick={() => setShowConnectDialog(true)}
-                className="px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all"
-              >
+              <Button onClick={() => setShowConnectDialog(true)} variant="ghost">
                 Connect Store
-              </button>
+              </Button>
             </motion.div>
           ) : (
             <motion.div
@@ -139,14 +218,16 @@ export default function ProductIssues() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.4, ease: "easeOut" }}
             >
-            <ProductTable
-              products={products}
-              onView={setSelectedProduct}
-              onResolve={resolveSingle}
-              onAnalyze={analyzeProducts}
-              isLoading={isLoading}
-            />
-
+              <ProductTable
+                products={products}
+                isLoading={isLoading}
+                isProcessing={isProcessingDerived}
+                onView={setSelectedProduct}
+                onResolve={resolveSingle}
+                onAnalyze={analyzeProducts}
+                onPageChange={handlePageChange}
+                pagination={reportsPagination}
+              />
             </motion.div>
           )}
         </AnimatePresence>
@@ -160,13 +241,12 @@ export default function ProductIssues() {
       />
 
       {/* 🏪 Connect Store Dialog */}
-{showConnectDialog && (
-  <ConnectStoreDialog
-    onClose={() => setShowConnectDialog(false)}
-    onConnect={connectStore}
-  />
-)}
-
+      {showConnectDialog && (
+        <ConnectStoreDialog
+          onClose={() => setShowConnectDialog(false)}
+          onConnect={connectStore}
+        />
+      )}
 
       {/* 🔔 Toast Notifications */}
       <AnimatePresence>
@@ -190,7 +270,7 @@ export default function ProductIssues() {
       </AnimatePresence>
 
       {/* ⚡ Disconnect Button */}
-      {storeInfo.isConnected && (
+      {isStoreConnected && (
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.97 }}

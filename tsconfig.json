@@ -33,9 +33,13 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "app/product-issues/page.jsx",
+    "components/ChatBot.jsx",
+    "app/ClientLayout.jsx",
     ".next\\dev/types/**/*.ts",
     ".next\\dev/types/**/*.ts"
-, "app/product-issues/page.jsx", "components/ChatBot.jsx", "app/ClientLayout.jsx"  ],
+  ],
   "exclude": [
     "node_modules"
   ]

@@ -10,8 +10,12 @@ export default function Navbar({
   title = "Dashboard",
   storeName,
   isConnected = false,
-  isAnalyzing = false,
-  isResolving = false,
+  isAnalyzing = false, // For bulk analyze
+  isResolving = false, // For bulk resolve
+  processingSingle = { // For single product operations
+    analyzing: new Set(),
+    resolving: new Set(),
+  },
   onConnect,
   onReconnect,
   onAnalyzeAll,
@@ -19,34 +23,23 @@ export default function Navbar({
   showActions = false,
 }) {
   const [hasCachedStore, setHasCachedStore] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
 
-  // 🚫 Disable analyze/resolve buttons only on GSC Metrics
   const isGscMetricsPage = pathname === "/gsc-metrics";
 
-  // useEffect(() => {
+  // ✅ Check for cached store info
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storeInfo = localStorage.getItem("storeInfo");
+      const accessToken = localStorage.getItem("accessToken");
+      if (storeInfo && accessToken) {
+        setHasCachedStore(true);
+      }
+    }
+  }, []);
 
-  //   if (typeof window !== 'undefined') {
-  //     setMounted(true);
-  //     const storeInfo = localStorage.getItem("storeInfo");
-  //     const accessToken = localStorage.getItem("accessToken");
-
-  //     if (storeInfo && accessToken) {
-  //       setHasCachedStore(true);
-  //       const parsedStore = JSON.parse(storeInfo);
-
-  //       if (!isConnected && parsedStore.isConnected) {
-  //         setTimeout(() => {
-  //           onReconnect?.(parsedStore.name, accessToken);
-  //         }, 500);
-  //       }
-  //     }
-  //   }
-  // }, [isConnected, onReconnect]);
-
-  // Don't render anything during SSR to prevent hydration mismatch
-  if (typeof window === 'undefined') {
+  // ✅ Prevent hydration mismatch on SSR
+  if (typeof window === "undefined") {
     return <div className="h-20 w-full" />;
   }
 
@@ -91,7 +84,7 @@ export default function Navbar({
         {showActions && !isGscMetricsPage && (
           <div className="flex flex-wrap items-center gap-3">
             {/* 🔌 Disconnected State */}
-            {/* {!isConnected && (
+            {!isConnected && (
               <>
                 <Button
                   onClick={onConnect}
@@ -103,52 +96,49 @@ export default function Navbar({
                 </Button>
 
                 {hasCachedStore && (
-                  <div className="inline-block">
-                    <Button
-                      onClick={() => {
-                        const storeInfo = JSON.parse(localStorage.getItem("storeInfo"));
-                        const accessToken = localStorage.getItem("accessToken");
-                        onReconnect?.(storeInfo?.name, accessToken);
-                      }}
-                      className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm hover:shadow-md transition-all hover:scale-[1.02]"
-                    >
-                      <Link2 className="w-4 h-4" />
-                      Reconnect Store
-                    </Button>
-                  </div>
+                  <Button
+                    onClick={() => {
+                      const storeInfo = JSON.parse(localStorage.getItem("storeInfo"));
+                      const accessToken = localStorage.getItem("accessToken");
+                      onReconnect?.(storeInfo?.name, accessToken);
+                    }}
+                    className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm hover:shadow-md transition-all hover:scale-[1.02]"
+                  >
+                    <Link2 className="w-4 h-4" />
+                    Reconnect Store
+                  </Button>
                 )}
               </>
-            )} */}
+            )}
 
-            {/* ✅ Connected State */}
+            {/* ✅ Connected State Actions */}
             {isConnected && (
               <>
-                <div className="inline-block">
-                  <Button
-                    onClick={onAnalyzeAll}
-                    variant="outline"
-                    disabled={isAnalyzing}
-                    className="flex items-center gap-2 border-gray-300 hover:border-blue-400 hover:text-blue-700 transition-all hover:scale-[1.02]"
-                  >
-                    <RefreshCw
-                      className={`w-4 h-4 ${
-                        isAnalyzing ? "animate-spin text-blue-600" : ""
-                      }`}
-                    />
-                    {isAnalyzing ? "Analyzing..." : "Analyze All"}
-                  </Button>
-                </div>
-
-                <div className="inline-block">
-                  <Button
-                    onClick={onResolveAll}
-                    disabled={isResolving}
-                    className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded-md shadow-sm hover:shadow-md transition-all disabled:opacity-60 flex items-center gap-2 hover:scale-[1.02]"
-                  >
+                <Button
+                  onClick={onAnalyzeAll}
+                  disabled={isAnalyzing}
+                  className="flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  {isAnalyzing ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
                     <CheckCircle className="w-4 h-4" />
-                    {isResolving ? "Resolving..." : "Resolve All"}
-                  </Button>
-                </div>
+                  )}
+                  Analyze All
+                </Button>
+
+                <Button
+                  onClick={onResolveAll}
+                  disabled={isResolving}
+                  className="flex items-center gap-2 bg-green-600 text-white hover:bg-green-700"
+                >
+                  {isResolving ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-4 h-4" />
+                  )}
+                  Resolve All
+                </Button>
               </>
             )}
           </div>

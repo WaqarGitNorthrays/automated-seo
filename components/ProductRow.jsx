@@ -6,7 +6,11 @@ import { CheckCircle, Package, Loader2, AlertCircle, Sparkles } from "lucide-rea
 import { motion } from "framer-motion";
 import { useState, useRef } from "react";
 
-export default function ProductRow({
+// Memoize the component to prevent unnecessary re-renders
+import { memo } from 'react';
+
+// Add display name for better debugging
+const ProductRow = memo(function ProductRow({
   product,
   isSelected,
   onSelect,
@@ -18,6 +22,7 @@ export default function ProductRow({
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const nameRef = useRef(null);
+  const rowRef = useRef(null);
 
   const getSeoScoreColor = (score) => {
     if (score >= 90)
@@ -34,7 +39,11 @@ export default function ProductRow({
 
   return (
     <motion.div
+      ref={rowRef}
       layout
+      role="row"
+      aria-selected={isSelected}
+      aria-busy={isProcessing}
       initial={{ opacity: 0, y: 5 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -5 }}
@@ -61,10 +70,13 @@ export default function ProductRow({
         {/* Selection + Image */}
         <div className="flex items-center gap-4 flex-1">
           <Checkbox
+            id={`select-${product.id}`}
             checked={isSelected}
             onCheckedChange={onSelect}
-            className={`h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${isProcessing ? 'opacity-50' : ''}`}
+            className={`h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isProcessing ? 'opacity-50' : ''}`}
             disabled={isProcessing}
+            aria-label={`Select ${product.name}`}
+            aria-describedby={`product-${product.id}-name`}
           />
 
           <div className={`w-16 h-16 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl flex items-center justify-center border border-gray-200 shadow-inner ${isProcessing ? 'opacity-70' : ''}`}>
@@ -74,35 +86,43 @@ export default function ProductRow({
           <div className="flex-1 min-w-0">
             <div className="relative">
               <h3 
+                id={`product-${product.id}-name`}
                 ref={nameRef}
                 onMouseEnter={() => setShowTooltip(true)}
                 onMouseLeave={() => setShowTooltip(false)}
-                className="font-semibold text-gray-900 text-base truncate tracking-tight max-w-[200px] md:max-w-[300px] lg:max-w-[400px] cursor-default"
+                onFocus={() => setShowTooltip(true)}
+                onBlur={() => setShowTooltip(false)}
+                tabIndex="0"
+                className="font-semibold text-gray-900 text-base truncate tracking-tight max-w-[200px] md:max-w-[300px] lg:max-w-[400px] cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:rounded"
+                aria-label={`Product: ${product.name}`}
               >
                 {product.name}
               </h3>
               
-              {/* Tooltip */}
-              {showTooltip && product.name.length > 40 && nameRef.current && (
+              {/* Accessible Tooltip */}
+              <div 
+                role="tooltip"
+                className={`absolute z-[9999] p-2 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg shadow-lg whitespace-normal break-words max-w-xs transition-opacity duration-200 ${
+                  showTooltip && product.name.length > 40 ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                }`}
+                style={{
+                  bottom: '100%',
+                  left: '0',
+                  marginBottom: '8px',
+                  visibility: showTooltip && product.name.length > 40 ? 'visible' : 'hidden'
+                }}
+                aria-hidden={!(showTooltip && product.name.length > 40)}
+              >
+                {product.name}
                 <div 
-                  className="absolute z-[9999] p-2 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg shadow-lg whitespace-normal break-words max-w-xs"
+                  className="absolute w-2 h-2 bg-white border-r border-b border-gray-200 transform rotate-45"
                   style={{
-                    bottom: '100%',
-                    left: '0',
-                    marginBottom: '8px'
+                    top: '100%',
+                    left: '16px',
+                    marginTop: '-5px'
                   }}
-                >
-                  {product.name}
-                  <div 
-                    className="absolute w-2 h-2 bg-white border-r border-b border-gray-200 transform rotate-45"
-                    style={{
-                      top: '100%',
-                      left: '16px',
-                      marginTop: '-5px'
-                    }}
-                  />
-                </div>
-              )}
+                />
+              </div>
             </div>
             
             <div className="flex flex-wrap items-center gap-2 mt-2">
@@ -126,16 +146,16 @@ export default function ProductRow({
                   variant="ghost"
                   size="sm"
                   onClick={onView}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-medium p-1 h-6 flex items-center gap-1"
+                  aria-label={`View ${product.issues.length} issue${product.issues.length !== 1 ? 's' : ''} for ${product.name}`}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium p-1 h-6 flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded"
                 >
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  {product.issues.length} Issue
-                  {product.issues.length !== 1 ? "s" : ""}
+                  <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>{product.issues.length} Issue{product.issues.length !== 1 ? "s" : ""}</span>
                 </Button>
               ) : (
                 <span className="flex items-center text-xs text-gray-500">
-                  <CheckCircle className="w-3.5 h-3.5 text-emerald-500 mr-1" />
-                  No issues
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-500 mr-1" aria-hidden="true" />
+                  <span>No issues</span>
                 </span>
               )}
             </div>
@@ -150,19 +170,21 @@ export default function ProductRow({
               variant="outline"
               onClick={onView}
               disabled={isProcessing}
-              className="rounded-full px-4 text-gray-700 hover:text-blue-700 hover:border-blue-400"
+              aria-label={`View issues for ${product.name}`}
+              className="rounded-full px-4 text-gray-700 hover:text-blue-700 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
             >
-              Issues
+              <span>Issues</span>
             </Button>
             <Button
               size="sm"
               variant="outline"
               onClick={onSeoClick}
               disabled={isProcessing}
-              className="rounded-full px-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:shadow-md hover:opacity-90 transition-all"
+              aria-label={`Analyze SEO for ${product.name}`}
+              className="rounded-full px-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:shadow-md hover:opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
             >
-              <Sparkles className="w-4 h-4 mr-1" />
-              SEO
+              <Sparkles className="w-4 h-4 mr-1" aria-hidden="true" />
+              <span>SEO</span>
             </Button>
           </div>
 
@@ -201,4 +223,6 @@ export default function ProductRow({
       /> */}
     </motion.div>
   );
-}
+});
+
+export default ProductRow;

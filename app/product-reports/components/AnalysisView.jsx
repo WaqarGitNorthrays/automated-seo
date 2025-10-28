@@ -1,7 +1,7 @@
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 
-export default function AnalysisView({ issues }) {
-  if (!issues || issues.length === 0) {
+export default function AnalysisView({ product }) {
+  if (!product?.issues || product.issues.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
         No analysis available for this product.
@@ -11,7 +11,8 @@ export default function AnalysisView({ issues }) {
 
   return (
     <div className="space-y-4">
-      {issues.map((issue, idx) => {
+      <h3 className="text-lg font-medium text-gray-900 mb-4">SEO Analysis</h3>
+      {product.issues.map((issue, idx) => {
         const [issueText, scoreText] = issue.split(/(\d+\/\d+)$/);
         const isError = scoreText && parseInt(scoreText) === 0;
         
