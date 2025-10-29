@@ -9,6 +9,7 @@ import { Package, CheckCircle, Loader2, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "./ui/button";
 import Pagination from "./Pagination";
+
 const memo = require("react").memo;
 
 const ProductTable = memo(function ProductTable({
@@ -19,47 +20,52 @@ const ProductTable = memo(function ProductTable({
   onAnalyze,
   pagination: propPagination = {},
   onPageChange = () => {},
-  isProcessing = false,
 }) {
-  // Always call hooks at the top level and unconditionally
   const router = useRouter();
   const [selectedProducts, setSelectedProducts] = useState(new Set());
-  
-  // Handle SEO click to navigate to SEO opportunities page
-  const handleSeoClick = useCallback((productId) => {
-    const encodedId = encodeURIComponent(productId);
-    router.push(`/seo-opportunities/${encodedId}?status=loading`);
-  }, [router]);
   const [processingProducts, setProcessingProducts] = useState(new Set());
-  const [lastSelectedId, setLastSelectedId] = useState(null);
   const [currentAction, setCurrentAction] = useState(null);
+  const [lastSelectedId, setLastSelectedId] = useState(null);
   const tableRef = useRef(null);
-  
-  // Memoize product IDs and pagination
+
   const productIds = useMemo(() => products.map((p) => p.id), [products]);
-  const pagination = useMemo(() => ({
-    currentPage: 1,
-    totalPages: 1,
-    totalItems: products.length,
-    ...propPagination
-  }), [propPagination, products.length]);
-  
-  // Calculate derived state
+
+  const pagination = useMemo(
+    () => ({
+      currentPage: 1,
+      totalPages: 1,
+      totalItems: products.length,
+      ...propPagination,
+    }),
+    [propPagination, products.length]
+  );
+
   const { selectedCount, totalCount, isAllSelected, isIndeterminate } = useMemo(
     () => ({
       selectedCount: selectedProducts.size,
       totalCount: products.length,
-      isAllSelected: selectedProducts.size > 0 && selectedProducts.size === products.length,
-      isIndeterminate: selectedProducts.size > 0 && selectedProducts.size < products.length,
+      isAllSelected:
+        selectedProducts.size > 0 &&
+        selectedProducts.size === products.length,
+      isIndeterminate:
+        selectedProducts.size > 0 &&
+        selectedProducts.size < products.length,
     }),
     [selectedProducts.size, products.length]
   );
-  
+
+  const handleSeoClick = useCallback(
+    (productId) => {
+      const encodedId = encodeURIComponent(productId);
+      router.push(`/seo-opportunities/${encodedId}?status=loading`);
+    },
+    [router]
+  );
+
   const toggleProductSelection = useCallback(
     (productId, isShiftKey = false) => {
       setSelectedProducts((prev) => {
         const newSelection = new Set(prev);
-
         if (isShiftKey && lastSelectedId) {
           const lastIndex = productIds.indexOf(lastSelectedId);
           const currentIndex = productIds.indexOf(productId);
@@ -69,8 +75,7 @@ const ProductTable = memo(function ProductTable({
               Math.max(lastIndex, currentIndex),
             ];
             for (let i = start; i <= end; i++) {
-              const id = productIds[i];
-              newSelection.add(id);
+              newSelection.add(productIds[i]);
             }
           }
         } else {
@@ -85,68 +90,30 @@ const ProductTable = memo(function ProductTable({
     [lastSelectedId, productIds]
   );
 
-  ProductTable.displayName = "ProductTable";
-
-  const productRows = useMemo(() => {
-    if (!Array.isArray(products)) return null;
-
-    return products.map((product) => (
-      <div key={product.id} className="relative group">
-        <ProductRow
-          product={{
-            id: product.id,
-            name: product["Product Name"],
-            seoScore: product["SEO Score"],
-            status: product.status,
-            issues: product.issues,
-          }}
-          isSelected={selectedProducts.has(product.id)}
-          onSelect={(e) => toggleProductSelection(product.id, e.shiftKey)}
-          onView={() => onView(product)}
-          onResolve={onResolve}
-          onSeoClick={() => handleSeoClick(product.id)}
-          isProcessing={processingProducts.has(product.id)}
-          processingAction={
-            processingProducts.has(product.id) ? currentAction : null
-          }
-        />
-      </div>
-    ));
-  }, [products, selectedProducts, processingProducts, currentAction, onView, onResolve, toggleProductSelection, handleSeoClick]);
-  ProductTable.displayName = "ProductTable";
-
-  useEffect(() => {
-    if (tableRef.current && selectedProducts.size > 0) {
-      const focusable = tableRef.current.querySelector("button, [tabindex]");
-      if (focusable) focusable.focus();
-    }
-  }, [selectedProducts.size]);
-
   const toggleSelectAll = useCallback(() => {
-    if (selectedProducts.size === products.length) {
-      setSelectedProducts(new Set());
-    } else {
-      setSelectedProducts(new Set(productIds));
-    }
-  }, [products.length, selectedProducts.size, productIds]);
+    setSelectedProducts((prev) =>
+      prev.size === products.length ? new Set() : new Set(productIds)
+    );
+  }, [productIds, products.length]);
 
   const clearSelection = useCallback(() => {
     setSelectedProducts(new Set());
     setLastSelectedId(null);
   }, []);
 
+  // ✅ Handle bulk analyze/resolve with top button + per-row loading
   const handleBulkAction = async (actionType) => {
     if (selectedProducts.size === 0) return;
 
-    const productIds = Array.from(selectedProducts);
+    const ids = Array.from(selectedProducts);
     setCurrentAction(actionType);
-    setProcessingProducts(new Set(productIds));
+    setProcessingProducts(new Set(ids));
 
     try {
-      if (actionType === "resolve") {
-        await onResolve(productIds);
-      } else if (onAnalyze) {
-        await onAnalyze(productIds);
+      if (actionType === "resolve" && onResolve) {
+        await onResolve(ids);
+      } else if (actionType === "analyze" && onAnalyze) {
+        await onAnalyze(ids);
       }
       setSelectedProducts(new Set());
     } catch (error) {
@@ -157,12 +124,18 @@ const ProductTable = memo(function ProductTable({
     }
   };
 
-  // Show loading state
-  if (isLoading) {
-    return <TableSkeleton rows={5} />;
-  }
+  // ✅ Focus handling for accessibility
+  useEffect(() => {
+    if (tableRef.current && selectedProducts.size > 0) {
+      const focusable = tableRef.current.querySelector("button, [tabindex]");
+      if (focusable) focusable.focus();
+    }
+  }, [selectedProducts.size]);
 
-  // Show empty state
+  // ✅ Loading state
+  if (isLoading) return <TableSkeleton rows={5} />;
+
+  // ✅ Empty state
   if (products.length === 0) {
     return (
       <AnimatePresence>
@@ -170,9 +143,6 @@ const ProductTable = memo(function ProductTable({
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          role="status"
-          aria-live="polite"
-          aria-label="No products found"
         >
           <EmptyState
             icon={Package}
@@ -184,9 +154,47 @@ const ProductTable = memo(function ProductTable({
     );
   }
 
+  // ✅ Rows rendering
+  const productRows = useMemo(
+    () =>
+      products.map((product) => (
+        <div key={product.id} className="relative group">
+          <ProductRow
+            product={{
+              id: product.id,
+              name: product["Product Name"],
+              seoScore: product["SEO Score"],
+              status: product.status,
+              issues: product.issues,
+            }}
+            isSelected={selectedProducts.has(product.id)}
+            onSelect={(e) => toggleProductSelection(product.id, e.shiftKey)}
+            onView={() => onView(product)}
+            onResolve={onResolve}
+            onSeoClick={() => handleSeoClick(product.id)}
+            // ✅ Row loading when included in processingProducts
+            isProcessing={processingProducts.has(product.id)}
+            processingAction={
+              processingProducts.has(product.id) ? currentAction : null
+            }
+          />
+        </div>
+      )),
+    [
+      products,
+      selectedProducts,
+      processingProducts,
+      currentAction,
+      onView,
+      onResolve,
+      toggleProductSelection,
+      handleSeoClick,
+    ]
+  );
+
   return (
     <div className="space-y-6 relative" ref={tableRef}>
-      {/* ✅ Floating Selection Bar */}
+      {/* ✅ Floating Bulk Action Bar */}
       <AnimatePresence>
         {selectedCount > 0 && (
           <motion.div
@@ -227,6 +235,7 @@ const ProductTable = memo(function ProductTable({
                 Cancel
               </Button>
 
+              {/* Analyze Button */}
               <Button
                 size="sm"
                 variant="outline"
@@ -234,7 +243,8 @@ const ProductTable = memo(function ProductTable({
                 disabled={processingProducts.size > 0}
                 className="rounded-full border-blue-200 hover:bg-blue-50 text-blue-700 gap-2"
               >
-                {currentAction === "analyze" && processingProducts.size > 0 ? (
+                {currentAction === "analyze" &&
+                processingProducts.size > 0 ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Analyzing...</span>
@@ -247,13 +257,15 @@ const ProductTable = memo(function ProductTable({
                 )}
               </Button>
 
+              {/* Resolve Button */}
               <Button
                 size="sm"
                 onClick={() => handleBulkAction("resolve")}
                 disabled={processingProducts.size > 0}
                 className="rounded-full bg-blue-600 hover:bg-blue-700 text-white gap-2"
               >
-                {currentAction === "resolve" && processingProducts.size > 0 ? (
+                {currentAction === "resolve" &&
+                processingProducts.size > 0 ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Resolving...</span>
@@ -276,12 +288,10 @@ const ProductTable = memo(function ProductTable({
         layout
         transition={{ layout: { duration: 0.3 } }}
       >
-        <AnimatePresence mode="popLayout">
-          {productRows}
-        </AnimatePresence>
+        <AnimatePresence mode="popLayout">{productRows}</AnimatePresence>
       </motion.div>
 
-      {/* Pagination */}
+      {/* ✅ Pagination */}
       {pagination && pagination.totalPages > 1 && (
         <div className="mt-6 flex items-center justify-between px-2">
           <Pagination

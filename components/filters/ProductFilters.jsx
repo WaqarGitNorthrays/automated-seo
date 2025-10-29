@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -61,15 +61,30 @@ export const ProductFilters = ({ onFilterChange, onReset, initialFilters = {}, h
     [filters, onFilterChange, buildFilterPayload]
   );
 
-  const handleScoreChange = useCallback(
-    (values) => {
-      const [min, max] = values;
-      const newFilters = { ...filters, score_min: min, score_max: max };
-      setFilters(newFilters);
+const debounceRef = useRef(null);
+
+const handleScoreChange = useCallback(
+  (values) => {
+    const [min, max] = values;
+    const newFilters = { ...filters, score_min: min, score_max: max };
+    setFilters(newFilters);
+
+    // 🕐 Debounce logic
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
       onFilterChange?.(buildFilterPayload(newFilters));
-    },
-    [filters, onFilterChange, buildFilterPayload]
-  );
+    }, 400); // fire only after user stops moving slider for 400ms
+  },
+  [filters, onFilterChange, buildFilterPayload]
+);
+
+useEffect(() => {
+  return () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  };
+}, []);
+
+
 
   const handleReset = useCallback(() => {
     const resetFilters = {

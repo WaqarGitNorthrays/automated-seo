@@ -39,7 +39,7 @@
     "app/ClientLayout.jsx",
     ".next\\dev/types/**/*.ts",
     ".next\\dev/types/**/*.ts"
-  ],
+, "components/ConnectStoreDialog.jsx"  ],
   "exclude": [
     "node_modules"
   ]

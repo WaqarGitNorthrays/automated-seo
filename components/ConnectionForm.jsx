@@ -52,7 +52,7 @@ const ConnectionForm = ({ onConnect, isLoading }) => {
       onConnect({
         websiteUrl: formData.websiteUrl,
         apiKey: formData.apiKey,
-        credentials: formData.credentialsFile ? "credentials-processed" : null,
+        credentials: formData.credentialsFile,
       });
     } finally {
       setIsUploading(false);

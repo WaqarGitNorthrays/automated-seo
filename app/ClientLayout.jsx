@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { Toaster } from 'react-hot-toast';
+import { ToastContainer } from "react-toastify";
 import { Inter } from 'next/font/google';
 import Sidebar from '@/components/Sidebar';
 import ChatBot from '@/components/ChatBot';
@@ -52,7 +52,7 @@ export default function ClientLayout({ children }) {
         </main>
       </div>
       
-      <Toaster position="top-right" />
+      <ToastContainer position="top-right" />
       <ChatBot />
     </div>
   );

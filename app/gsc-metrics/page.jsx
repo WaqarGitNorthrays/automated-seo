@@ -25,7 +25,7 @@ export default function GSCMetrics() {
   } = useGSCStore();
 
   const handleConnect = async (credentials) => {
-    await connectWebsite(credentials.websiteUrl);
+    await connectWebsite(credentials);
   };
 
   // --- Show connection form when not connected ---

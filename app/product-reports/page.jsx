@@ -11,6 +11,7 @@ import Pagination from "@/components/Pagination";
 import ProductFilters from "@/components/filters/ProductFilters";
 import parseSolutions from "@/utils/parseSolutions";
 import Navbar from "@/components/Navbar";
+import {motion} from "framer-motion";
 import {Button} from "../../components/ui/button.tsx";
 
 
@@ -20,6 +21,7 @@ export default function ProductReportsPage() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [viewMode, setViewMode] = useState("analysis");
   const [showReport, setShowReport] = useState(false);
+  const [isStoreConnected, setIsStoreConnected] = useState(false);
 
   const [filters, setFilters] = useState({
     active: true,
@@ -79,9 +81,11 @@ export default function ProductReportsPage() {
   // ---------- Event Handlers ----------
   const handleFilterChange = (newFilters) => {
     const updated = { ...filters, ...newFilters };
+    if (JSON.stringify(updated) === JSON.stringify(filters)) return;
     setFilters(updated);
     loadProducts(1, updated);
   };
+
 
   const handleResetFilters = () => {
     const defaultFilters = {
@@ -108,11 +112,10 @@ export default function ProductReportsPage() {
     setSelectedProduct(null);
   };
 
-  const isStoreConnected = React.useMemo(() => {
-    if (typeof window === "undefined") return false;
+  useEffect(() => {
     const storeInfo = localStorage.getItem("storeInfo");
     const accessToken = localStorage.getItem("accessToken");
-    return !!(storeInfo && accessToken);
+    setIsStoreConnected(!!(storeInfo && accessToken));
   }, []);
 
   // Check store connection first
@@ -192,14 +195,23 @@ export default function ProductReportsPage() {
           </div>
 
           <div className="p-6">
-            {viewMode === "analysis" ? (
-              <AnalysisView product={selectedProduct} />
-            ) : (
-              <SolutionView
-                solutions={parseSolutions(selectedProduct.issues_and_proposed_solutions)}
-                productName={selectedProduct["Product Name"]}
-              />
-            )}
+            <motion.div
+              key={viewMode}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+            >
+              {viewMode === "analysis" ? (
+                <AnalysisView product={selectedProduct} />
+              ) : (
+                <SolutionView
+                  solutions={parseSolutions(selectedProduct.issues_and_proposed_solutions)}
+                  productName={selectedProduct["Product Name"]}
+                />
+              )}
+            </motion.div>
+
 
             {selectedProduct.issues_and_proposed_solutions && (
               <div className="mt-6 pt-6 border-t border-gray-200">

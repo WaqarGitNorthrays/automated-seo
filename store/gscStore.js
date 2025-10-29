@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import axiosInstance from '@/lib/axiosInstance';
+import { toast } from "react-toastify";
 
 export const useGSCStore = create(
   persist(
@@ -15,11 +16,12 @@ export const useGSCStore = create(
       toast: null,
 
       // --- Toast Notification ---
-      showToast: (message, type = 'info') => {
-        set({ toast: { message, type } });
-        setTimeout(() => set({ toast: null }), 4000);
-      },
 
+        showToast: (message, type = "info") => {
+          if (type === "success") toast.success(message);
+          else if (type === "error") toast.error(message);
+          else toast(message);
+        },
       // --- Normalize Issue Data (shared helper) ---
       normalizeIssues: (rawIssues) => {
         if (!rawIssues) return [];
@@ -69,24 +71,32 @@ export const useGSCStore = create(
         }
       },
 
-      connectWebsite: async (websiteUrl) => {
-        if (!websiteUrl) {
-          get().showToast('Please enter a valid Website URL', 'error');
+      connectWebsite: async (credentials) => {
+        const { websiteUrl, apiKey, credentials: credsFile } = credentials || {};
+
+        // ✅ Check all three fields
+        if (!websiteUrl || !apiKey || !credsFile) {
+          get().showToast('Please fill all required fields', 'error');
+          console.log('Missing fields:', { websiteUrl, apiKey, credsFile });
           return;
         }
 
         set({ isLoading: true });
 
         try {
+          const formData = new FormData();
+          formData.append('url', websiteUrl);
+          formData.append('api_key', apiKey);
+          formData.append('credentials', credsFile);
+
           const [queryRes, vitalsRes, issuesRes] = await Promise.all([
-            axiosInstance.get(`gsc-queries/?url=${encodeURIComponent(websiteUrl)}`),
-            axiosInstance.get(`core-web-vitals/?url=${encodeURIComponent(websiteUrl)}`),
-            axiosInstance.get(`website-issues/?url=${encodeURIComponent(websiteUrl)}`)
+            axiosInstance.post('gsc-queries/', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+            axiosInstance.post('core-web-vitals/', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+            axiosInstance.post('website-issues/', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
           ]);
 
           const normalizedIssues = get().normalizeIssues(issuesRes.data?.website_issues);
-          
-          // Fetch performance data after successful connection
+
           await get().fetchWebsitePerformance(websiteUrl);
 
           set({
@@ -104,11 +114,17 @@ export const useGSCStore = create(
           get().showToast('Successfully connected and data loaded', 'success');
         } catch (err) {
           console.error('Connection Error:', err);
-          get().showToast('Failed to connect or load data', 'error');
+          const message =
+            err?.response?.data?.error ||
+            err?.response?.data?.detail ||
+            err?.message ||
+            'Failed to connect or load data';
+          get().showToast(message, 'error');
         } finally {
           set({ isLoading: false });
         }
       },
+
 
       // --- Resolve Issues (same as before) ---
       resolveSingleIssue: async (issueText) => {

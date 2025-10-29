@@ -4,12 +4,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Package, Loader2, AlertCircle, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
-import { useState, useRef } from "react";
+import { useState, useRef, memo } from "react";
 
-// Memoize the component to prevent unnecessary re-renders
-import { memo } from 'react';
-
-// Add display name for better debugging
 const ProductRow = memo(function ProductRow({
   product,
   isSelected,
@@ -17,7 +13,7 @@ const ProductRow = memo(function ProductRow({
   onView,
   onResolve,
   onSeoClick,
-  isProcessing,
+  isProcessing = false,
   processingAction = null,
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
@@ -25,8 +21,7 @@ const ProductRow = memo(function ProductRow({
   const rowRef = useRef(null);
 
   const getSeoScoreColor = (score) => {
-    if (score >= 90)
-      return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (score >= 90) return "bg-emerald-50 text-emerald-700 border-emerald-200";
     if (score >= 70) return "bg-amber-50 text-amber-700 border-amber-200";
     return "bg-rose-50 text-rose-700 border-rose-200";
   };
@@ -55,37 +50,48 @@ const ProductRow = memo(function ProductRow({
       }`}
     >
       <div className="flex flex-col lg:flex-row lg:items-center gap-4 p-5 relative">
-        {/* Processing overlay */}
+        {/* ✅ Processing overlay */}
         {isProcessing && (
           <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center">
             <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-blue-100">
               <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
               <span className="text-sm font-medium text-blue-700">
-                {processingAction === 'analyze' ? 'Analyzing...' : 'Resolving...'}
+                {processingAction === "analyze" ? "Analyzing..." : "Resolving..."}
               </span>
             </div>
           </div>
         )}
-        
-        {/* Selection + Image */}
+
+        {/* Selection + Product Info */}
         <div className="flex items-center gap-4 flex-1">
           <Checkbox
             id={`select-${product.id}`}
             checked={isSelected}
             onCheckedChange={onSelect}
-            className={`h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isProcessing ? 'opacity-50' : ''}`}
+            className={`h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+              isProcessing ? "opacity-50" : ""
+            }`}
             disabled={isProcessing}
             aria-label={`Select ${product.name}`}
-            aria-describedby={`product-${product.id}-name`}
           />
 
-          <div className={`w-16 h-16 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl flex items-center justify-center border border-gray-200 shadow-inner ${isProcessing ? 'opacity-70' : ''}`}>
-            <Package className={`w-7 h-7 ${isProcessing ? 'text-gray-300' : 'text-gray-400'}`} aria-label="Product" />
+          <div
+            className={`w-16 h-16 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl flex items-center justify-center border border-gray-200 shadow-inner ${
+              isProcessing ? "opacity-70" : ""
+            }`}
+          >
+            <Package
+              className={`w-7 h-7 ${
+                isProcessing ? "text-gray-300" : "text-gray-400"
+              }`}
+              aria-label="Product"
+            />
           </div>
 
           <div className="flex-1 min-w-0">
+            {/* Product Name + Tooltip */}
             <div className="relative">
-              <h3 
+              <h3
                 id={`product-${product.id}-name`}
                 ref={nameRef}
                 onMouseEnter={() => setShowTooltip(true)}
@@ -94,37 +100,26 @@ const ProductRow = memo(function ProductRow({
                 onBlur={() => setShowTooltip(false)}
                 tabIndex="0"
                 className="font-semibold text-gray-900 text-base truncate tracking-tight max-w-[200px] md:max-w-[300px] lg:max-w-[400px] cursor-default focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:rounded"
-                aria-label={`Product: ${product.name}`}
               >
                 {product.name}
               </h3>
-              
-              {/* Accessible Tooltip */}
-              <div 
-                role="tooltip"
-                className={`absolute z-[9999] p-2 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg shadow-lg whitespace-normal break-words max-w-xs transition-opacity duration-200 ${
-                  showTooltip && product.name.length > 40 ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                }`}
-                style={{
-                  bottom: '100%',
-                  left: '0',
-                  marginBottom: '8px',
-                  visibility: showTooltip && product.name.length > 40 ? 'visible' : 'hidden'
-                }}
-                aria-hidden={!(showTooltip && product.name.length > 40)}
-              >
-                {product.name}
-                <div 
-                  className="absolute w-2 h-2 bg-white border-r border-b border-gray-200 transform rotate-45"
-                  style={{
-                    top: '100%',
-                    left: '16px',
-                    marginTop: '-5px'
-                  }}
-                />
-              </div>
+
+              {showTooltip && product.name?.length > 40 && (
+                <div
+                  role="tooltip"
+                  className="absolute z-[9999] p-2 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg shadow-lg whitespace-normal break-words max-w-xs"
+                  style={{ bottom: "100%", left: "0", marginBottom: "8px" }}
+                >
+                  {product.name}
+                  <div
+                    className="absolute w-2 h-2 bg-white border-r border-b border-gray-200 transform rotate-45"
+                    style={{ top: "100%", left: "16px", marginTop: "-5px" }}
+                  />
+                </div>
+              )}
             </div>
-            
+
+            {/* SEO Score + Status + Issues */}
             <div className="flex flex-wrap items-center gap-2 mt-2">
               <span
                 className={`px-2.5 py-1 text-xs font-medium rounded-full border ${getSeoScoreColor(
@@ -141,20 +136,23 @@ const ProductRow = memo(function ProductRow({
                 {product.status}
               </span>
 
-              {product.issues && product.issues.length > 0 ? (
+              {product.issues?.length > 0 ? (
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={onView}
-                  aria-label={`View ${product.issues.length} issue${product.issues.length !== 1 ? 's' : ''} for ${product.name}`}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-medium p-1 h-6 flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded"
+                  disabled={isProcessing}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium p-1 h-6 flex items-center gap-1"
                 >
-                  <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>{product.issues.length} Issue{product.issues.length !== 1 ? "s" : ""}</span>
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>
+                    {product.issues.length} Issue
+                    {product.issues.length !== 1 ? "s" : ""}
+                  </span>
                 </Button>
               ) : (
                 <span className="flex items-center text-xs text-gray-500">
-                  <CheckCircle className="w-3.5 h-3.5 text-emerald-500 mr-1" aria-hidden="true" />
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-500 mr-1" />
                   <span>No issues</span>
                 </span>
               )}
@@ -162,36 +160,33 @@ const ProductRow = memo(function ProductRow({
           </div>
         </div>
 
-        {/* Actions */}
+        {/* ✅ Actions */}
         <div className="flex flex-wrap gap-2 justify-end lg:justify-normal">
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onView}
-              disabled={isProcessing}
-              aria-label={`View issues for ${product.name}`}
-              className="rounded-full px-4 text-gray-700 hover:text-blue-700 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-            >
-              <span>Issues</span>
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onSeoClick}
-              disabled={isProcessing}
-              aria-label={`Analyze SEO for ${product.name}`}
-              className="rounded-full px-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:shadow-md hover:opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
-            >
-              <Sparkles className="w-4 h-4 mr-1" aria-hidden="true" />
-              <span>SEO</span>
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onView}
+            disabled={isProcessing}
+            className="rounded-full px-4 text-gray-700 hover:text-blue-700 hover:border-blue-400"
+          >
+            Issues
+          </Button>
 
-          {/* {product.issues && product.issues.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onSeoClick}
+            disabled={isProcessing}
+            className="rounded-full px-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:shadow-md hover:opacity-90 transition-all"
+          >
+            <Sparkles className="w-4 h-4 mr-1" />
+            SEO
+          </Button>
+
+          {/* {product.issues?.length > 0 && (
             <Button
               size="sm"
-              onClick={() => onResolve && onResolve(product.id)}
+              onClick={() => onResolve?.(product.id)}
               disabled={isProcessing}
               className={`rounded-full px-4 flex items-center gap-1 font-medium ${
                 isSelected
@@ -199,7 +194,7 @@ const ProductRow = memo(function ProductRow({
                   : "bg-blue-50 hover:bg-blue-100 text-blue-700"
               }`}
             >
-              {isProcessing ? (
+              {isProcessing && processingAction === "resolve" ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Resolving...
@@ -214,13 +209,6 @@ const ProductRow = memo(function ProductRow({
           )} */}
         </div>
       </div>
-
-      {/* Subtle bottom gradient hover effect */}
-      {/* <motion.div
-        className="absolute bottom-0 left-0 w-full h-[2px] bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 opacity-0"
-        animate={{ opacity: isSelected ? 1 : 0 }}
-        transition={{ duration: 0.4 }}
-      /> */}
     </motion.div>
   );
 });

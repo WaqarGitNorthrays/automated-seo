@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import axiosInstance from "@/lib/axiosInstance";
+import { toast } from "react-toastify";
 
 // ✅ Helper: safely parse JSON from localStorage
 const getLocal = (key, fallback) => {
@@ -29,52 +30,52 @@ export const useProductStore = create((set, get) => ({
     totalItems: 0,
     itemsPerPage: 10
   },
-  filters: {
-    optimized: null,
-    active: null,
-    analyzed: null,
-    score_min: null,
-    score_max: null
-  },
+  // filters: {
+  //   optimized: null,
+  //   active: null,
+  //   analyzed: null,
+  //   score_min: null,
+  //   score_max: null
+  // },
   storeInfo: getLocal("storeInfo", { name: "", isConnected: false }),
   accessToken: getLocal("accessToken", ""),
   email: getLocal("email", ""),
   isLoading: false,
-  isAnalyzing: false,      // For bulk analyze
-  isResolving: false,     // For bulk resolve
-  isProcessingSingle: {   // For single product operations
+  isAnalyzing: false,      
+  isResolving: false,     
+  isProcessingSingle: {   
     analyzing: new Set(),
     resolving: new Set()
   },
   toast: null,
 
   // ====== TOAST ======
-  showToast: (message, type = "info") => {
-    set({ toast: { message, type } });
-    setTimeout(() => set({ toast: null }), 4000);
-  },
 
-  // ====== FETCH PRODUCTS ======
+showToast: (message, type = "info") => {
+  if (type === "success") toast.success(message);
+  else if (type === "error") toast.error(message);
+  else toast(message);
+},
+
   // ====== UPDATE FILTERS ======
-  updateFilters: (newFilters) => {
-    set(state => ({
-      filters: { ...state.filters, ...newFilters }
-    }));
-  },
+  // updateFilters: (newFilters) => {
+  //   set(state => ({
+  //     filters: { ...state.filters, ...newFilters }
+  //   }));
+  // },
 
   // ====== RESET FILTERS ======
-  resetFilters: () => {
-    set({
-      filters: {
-        optimized: null,
-        active: null,
-        analyzed: null,
-        score_min: null,
-        score_max: null
-      }
-    });
-  },
-
+  // resetFilters: () => {
+  //   set({
+  //     filters: {
+  //       optimized: null,
+  //       active: null,
+  //       analyzed: null,
+  //       score_min: null,
+  //       score_max: null
+  //     }
+  //   });
+  // },
 
 
 // ====== CONNECT STORE ======
@@ -82,30 +83,15 @@ connectStore: async ({ storeName, accessToken, email }) => {
   try {
     set({ isLoading: true });
 
-    // ✅ Prepare connection info
-    const info = {
-      name: storeName,
-      email,
-      isConnected: true,
-    };
-
-    // ✅ Save store data in Zustand + localStorage
-    set({
-      storeInfo: info,
-      accessToken,
-      email,
-    });
-
-    localStorage.setItem("storeInfo", JSON.stringify(info));
-    localStorage.setItem("accessToken", accessToken);
-    localStorage.setItem("email", email);
-
-    // ✅ Initial product fetch (no filters)
     const response = await axiosInstance.post("fetch-products/", {
       storeName,
       accessToken,
       email,
     });
+
+    if (!response?.data || !Array.isArray(response.data.products)) {
+      throw new Error("Invalid response from server.");
+    }
 
     const productsData = response.data.products || [];
     const paginationData = {
@@ -113,24 +99,42 @@ connectStore: async ({ storeName, accessToken, email }) => {
       totalPages: response.data.total_pages || 1,
     };
 
-    // ✅ Update Zustand state
+    const info = { name: storeName, email, isConnected: true };
+
     set({
+      storeInfo: info,
+      accessToken,
+      email,
       products: productsData,
       reportsPagination: paginationData,
     });
 
-    localStorage.setItem(
-      "cachedProducts",
-      JSON.stringify({
-        products: productsData,
-        ...paginationData,
-      })
-    );
+    localStorage.setItem("storeInfo", JSON.stringify(info));
+    localStorage.setItem("accessToken", accessToken);
+    localStorage.setItem("email", email);
 
     get().showToast("Store connected successfully", "success");
+    return true; // ✅ success
   } catch (error) {
     console.error("connectStore error:", error);
-    get().showToast("Failed to connect to store.", "error");
+
+    // ✅ Extract backend message safely
+    const errorMessage =
+      error?.response?.data?.error ||
+      error?.response?.data?.message ||
+      error?.message ||
+      "Failed to connect store. Please try again.";
+
+    // ✅ Reset state + localStorage
+    set({ storeInfo: { name: "", isConnected: false }, products: [] });
+    localStorage.removeItem("storeInfo");
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("email");
+
+    // ✅ Show exact error message in toast
+    get().showToast(errorMessage, "error");
+
+    return false; // ❌ failure
   } finally {
     set({ isLoading: false });
   }
@@ -157,9 +161,9 @@ fetchProductsForReports: async (page = 1, afterAnalysis = false, filters = {}) =
         storeInfo = savedInfo;
         accessToken = savedAccessToken;
         email = savedEmail;
-        console.log("🔄 Restored store credentials from localStorage");
+        console.log("Restored store credentials from localStorage");
       } else {
-        console.warn("⚠️ Missing store credentials — skipping fetch");
+        console.warn("Missing store credentials — skipping fetch");
         return;
       }
     }
@@ -220,62 +224,62 @@ fetchProductsForReports: async (page = 1, afterAnalysis = false, filters = {}) =
 },
 
 
-  // ====== ANALYZE PRODUCTS ======
-  analyzeProducts: async (productIds) => {
-    const { storeInfo, showToast } = get();
-    const accessToken = localStorage.getItem("accessToken");
-    const email = localStorage.getItem("email") || '';
+    // ====== ANALYZE PRODUCTS ======
+    analyzeProducts: async (productIds) => {
+      const { storeInfo, showToast, fetchProductsForReports, isProcessingSingle } = get();
+      const accessToken = localStorage.getItem("accessToken");
+      const email = localStorage.getItem("email") || "";
 
-    if (!storeInfo?.name || !accessToken) {
-      showToast("Access token missing. Please reconnect your store.", "error");
-      return;
-    }
+      if (!storeInfo?.name || !accessToken) {
+        showToast("Access token missing. Please reconnect your store.", "error");
+        return;
+      }
 
-    const isSingle = Array.isArray(productIds) ? productIds.length === 1 : true;
-    const productIdList = Array.isArray(productIds) ? productIds : [productIds];
+      const productIdList = Array.isArray(productIds) ? productIds : [productIds];
+      const isSingle = productIdList.length === 1;
 
-    set({ isAnalyzing: true });
-    try {
-      const response = await axiosInstance.post("analyze-single-multiple-products/", {
-        product_ids: productIdList,
-        storeName: storeInfo.name,
-        accessToken,
+      // ✅ Mark product(s) as analyzing
+      const updatedAnalyzing = new Set(isProcessingSingle.analyzing);
+      productIdList.forEach((id) => updatedAnalyzing.add(id));
+      set({
+        isAnalyzing: !isSingle, // if bulk analyzing, show global loader
+        isProcessingSingle: { ...isProcessingSingle, analyzing: updatedAnalyzing },
       });
 
-      // Refresh the products list after analysis 
-      await get().fetchProductsForReports(1, true);
-
-      showToast(
-        response.data.message || 
-        (isSingle 
-          ? `Analyzed 1 product` 
-          : `Analyzed ${productIdList.length} products`), 
-        "success"
-      );
-      
-      return response.data;
-    } catch (error) {
-      console.error("analyzeProducts error:", error);
-      const errorMessage = error.response?.data?.error || "Failed to analyze products.";
-      showToast(errorMessage, "error");
-      throw error;
-    } finally {
-      if (isSingle) {
-        const currentState = get();
-        const updatedAnalyzing = new Set(currentState.isProcessingSingle.analyzing);
-        productIdList.forEach(id => updatedAnalyzing.delete(id));
-        set({ 
-          isProcessingSingle: { 
-            ...currentState.isProcessingSingle, 
-            analyzing: updatedAnalyzing 
-          },
-          isAnalyzing: updatedAnalyzing.size > 0
+      try {
+        const response = await axiosInstance.post("analyze-single-multiple-products/", {
+          product_ids: productIdList,
+          storeName: storeInfo.name,
+          accessToken,
         });
-      } else {
-        set({ isAnalyzing: false });
+
+        await fetchProductsForReports(1, true);
+        showToast(
+          response.data.message ||
+            (isSingle
+              ? `Analyzed 1 product successfully`
+              : `Analyzed ${productIdList.length} products successfully`),
+          "success"
+        );
+
+        return response.data;
+      } catch (error) {
+        console.error("analyzeProducts error:", error);
+        const errorMessage =
+          error.response?.data?.error || "Failed to analyze products.";
+        showToast(errorMessage, "error");
+        throw error;
+      } finally {
+        const { isProcessingSingle: current } = get();
+        const cleanedAnalyzing = new Set(current.analyzing);
+        productIdList.forEach((id) => cleanedAnalyzing.delete(id));
+        set({
+          isAnalyzing: false,
+          isProcessingSingle: { ...current, analyzing: cleanedAnalyzing },
+        });
       }
-    }
-  },
+    },
+
 
   // ====== ANALYZE ALL ======
   analyzeAll: async () => {
@@ -298,7 +302,7 @@ fetchProductsForReports: async (page = 1, afterAnalysis = false, filters = {}) =
       await get().fetchProductsForReports(1, true, {});
     } catch (error) {
       console.error("analyzeAll error:", error);
-      showToast("Failed to analyze products.", "error");
+      // showToast("Failed to analyze products.", "error");
     } finally {
       set({ isAnalyzing: false });
     }
@@ -321,16 +325,77 @@ fetchProductsForReports: async (page = 1, afterAnalysis = false, filters = {}) =
         accessToken,
       });
       showToast(response.data.message || "Resolved all product issues.", "success");
-      await fetchProducts(storeInfo.name, accessToken);
+      await get().fetchProductsForReports(1, true, {});
     } catch (error) {
       console.error("resolveAll error:", error);
-      showToast("Failed to resolve issues.", "error");
+      // showToast("Failed to resolve issues.", "error");
     } finally {
       set({ isResolving: false });
     }
   },
 
-// ====== ANALYZE SEO OPPORTUNITIES ======
+
+
+
+    // ====== RESOLVE PRODUCTS ======
+    resolveProducts: async (productIds) => {
+      const { storeInfo, showToast, fetchProductsForReports, products, isProcessingSingle } = get();
+      const accessToken = localStorage.getItem("accessToken");
+
+      if (!productIds || productIds.length === 0 || !storeInfo.name || !accessToken) {
+        showToast("Missing products or credentials.", "error");
+        return;
+      }
+
+      const productIdList = Array.isArray(productIds) ? productIds : [productIds];
+      const isSingle = productIdList.length === 1;
+      const productNames = products
+        .filter((p) => productIdList.includes(p.id))
+        .map((p) => `"${p["Product Name"]}"`);
+
+      // ✅ Mark product(s) as resolving
+      const updatedResolving = new Set(isProcessingSingle.resolving);
+      productIdList.forEach((id) => updatedResolving.add(id));
+      set({
+        isResolving: !isSingle, // show global loader if multiple
+        isProcessingSingle: { ...isProcessingSingle, resolving: updatedResolving },
+      });
+
+      try {
+        const response = await axiosInstance.post("resolve-single-product-issues/", {
+          product_ids: productIdList,
+          storeName: storeInfo.name,
+          accessToken,
+        });
+
+        await fetchProductsForReports(1, true);
+        showToast(
+          response.data.message ||
+            (isSingle
+              ? `Resolved ${productNames[0]}`
+              : `Resolved ${productIdList.length} products`),
+          "success"
+        );
+
+        return response.data;
+      } catch (error) {
+        console.error("resolveProducts error:", error);
+        const errorMessage =
+          error.response?.data?.error || "Failed to resolve product issues.";
+        showToast(errorMessage, "error");
+        throw error;
+      } finally {
+        const { isProcessingSingle: current } = get();
+        const cleanedResolving = new Set(current.resolving);
+        productIdList.forEach((id) => cleanedResolving.delete(id));
+        set({
+          isResolving: false,
+          isProcessingSingle: { ...current, resolving: cleanedResolving },
+        });
+      }
+    },
+
+    // ====== ANALYZE SEO OPPORTUNITIES ======
 analyzeSEOOpportunities: async (productId) => {
   const { storeInfo, showToast } = get();
   const accessToken = localStorage.getItem("accessToken");
@@ -372,72 +437,6 @@ analyzeSEOOpportunities: async (productId) => {
     throw error;
   }
 },
-
-
-  // ====== RESOLVE PRODUCTS ======
-  resolveProducts: async (productIds) => {
-    const { products, storeInfo, fetchProductsForReports, showToast } = get();
-    const accessToken = localStorage.getItem("accessToken");
-    const email = localStorage.getItem("email");
-
-    if (!productIds || productIds.length === 0 || !storeInfo.name || !accessToken) {
-      showToast("Missing products or credentials.", "error");
-      return;
-    }
-
-    // Get product names for confirmation message
-    const productNames = products
-      .filter(p => productIds.includes(p.id))
-      .map(p => `"${p["Product Name"]}"`);
-
-    const isSingle = productIds.length === 1;
-    // const confirmMessage = isSingle 
-    //   ? `Resolve issues for ${productNames[0]}?`
-    //   : `Resolve issues for ${productIds.length} selected products?\n\n${productNames.join('\n')}`;
-
-    // if (!window.confirm(confirmMessage)) {
-    //   return;
-    // }
-
-    set({ isResolving: true });
-    try {
-      const response = await axiosInstance.post("resolve-single-product-issues/", {
-        product_ids: Array.isArray(productIds) ? productIds : [productIds],
-        storeName: storeInfo.name,
-        accessToken,
-      });
-
-      // Refresh the products list after resolving
-      await get().fetchProductsForReports(storeInfo.name, accessToken, 1, email, true);
-      
-      showToast(
-        response.data.message || 
-        (isSingle 
-          ? `Resolved ${productNames[0]}` 
-          : `Resolved ${productIds.length} products`), 
-        "success"
-      );
-      
-      return response.data;
-    } catch (error) {
-      console.error("resolveProducts error:", error);
-      const errorMessage = error.response?.data?.error || "Failed to resolve product issues.";
-      showToast(errorMessage, "error");
-      
-      // Reset loading states on error
-      if (isSingle) {
-        const updatedResolving = new Set(isProcessingSingle.resolving);
-        productIdList.forEach(id => updatedResolving.delete(id));
-        set({ isProcessingSingle: { ...isProcessingSingle, resolving: updatedResolving } });
-      } else {
-        set({ isResolving: false });
-      }
-      
-      throw error;
-    } finally {
-      set({ isResolving: false });
-    }
-  },
 
   // ====== HANDLE PRODUCT SUGGESTION ======
   handleProductSuggestion: async (productName, action) => {

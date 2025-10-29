@@ -2,33 +2,28 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { X, Store } from "lucide-react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-interface ConnectStoreDialogProps {
-  onConnect: (credentials: { storeName: string; accessToken: string; email: string }) => Promise<void>;
-  onClose: () => void;
-  open?: boolean; // Optional prop to control dialog visibility
-}
-
-export default function ConnectStoreDialog({ onConnect, onClose, open = true }: ConnectStoreDialogProps) {
+export default function ConnectStoreDialog({ onConnect, onClose, open = true }) {
   const [storeName, setStoreName] = useState("");
   const [accessToken, setAccessToken] = useState("");
-    const [email, setEmail] = useState("");
+  const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!storeName || !accessToken) return;
-    
     setIsLoading(true);
     try {
-      await onConnect({ storeName, accessToken, email });
-      setStoreName("");
-      setAccessToken("");
-      setEmail("");
+      const success = await onConnect({ storeName, accessToken, email });
+      if (success) {
+        setStoreName("");
+        setAccessToken("");
+        setEmail("");
+        onClose();
+      }
     } finally {
       setIsLoading(false);
     }
@@ -38,7 +33,7 @@ export default function ConnectStoreDialog({ onConnect, onClose, open = true }: 
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 20 }}
@@ -51,7 +46,7 @@ export default function ConnectStoreDialog({ onConnect, onClose, open = true }: 
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </button>
-        
+
         <div className="flex flex-col space-y-1.5 text-center sm:text-left">
           <h2 className="text-lg font-semibold leading-none tracking-tight">
             Connect Your Store
@@ -72,7 +67,7 @@ export default function ConnectStoreDialog({ onConnect, onClose, open = true }: 
               required
             />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="accessToken">Access Token</Label>
             <Input
@@ -84,21 +79,22 @@ export default function ConnectStoreDialog({ onConnect, onClose, open = true }: 
               required
             />
           </div>
-                    <div>
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="your@email.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        className="mt-1"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        We'll send important updates to this email
-                      </p>
-                    </div>
+
+          <div>
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="your@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="mt-1"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              We'll send important updates to this email
+            </p>
+          </div>
 
           <div className="flex justify-end space-x-2 pt-4">
             <Button
@@ -110,7 +106,7 @@ export default function ConnectStoreDialog({ onConnect, onClose, open = true }: 
               Cancel
             </Button>
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Connecting...' : 'Connect'}
+              {isLoading ? "Connecting..." : "Connect"}
             </Button>
           </div>
         </form>

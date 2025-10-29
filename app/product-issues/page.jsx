@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useProductStore } from "@/store/productStore";
 import Navbar from "@/components/Navbar";
@@ -21,14 +22,14 @@ export default function ProductIssues() {
     analyzeProducts,
     isResolving,
     resolveProducts: resolveSingle,
-    analyzeAll,
+    analyzeAll, 
     resolveAll,
     disconnect,
     reconnect,
     isLoading,
     toast,
     showToast,
-    updateFilters,
+    // updateFilters,
     isProcessingSingle = { analyzing: new Set(), resolving: new Set() },
   } = useProductStore();
 
@@ -40,11 +41,27 @@ export default function ProductIssues() {
     score_min: null,
     score_max: null,
   });
+
   const [showFilters, setShowFilters] = useState(false);
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const pathname = usePathname();
+
+useEffect(() => {
+  if (storeInfo?.isConnected && products.length === 0) {
+    const defaultFilters = {
+      optimized: null,
+      active: true,
+      analyzed: null,
+      score_min: null,
+      score_max: null,
+    };
+    setFilters(defaultFilters);
+    fetchProductsForReports(1, false, defaultFilters);
+  }
+}, [pathname]);
 
 
 // ✅ Simplified connectStore — no need to call fetchProductsForReports manually
@@ -82,14 +99,14 @@ const connectStore = async ({ storeName, accessToken, email }) => {
   // ✅ Simplified filter change handler
   const handleFilterChange = (newFilters) => {
     setFilters(newFilters);
-    updateFilters(newFilters);
+    // updateFilters(newFilters);
     fetchProductsForReports(1, false, newFilters);
   };
 
   // ✅ Simplified reset filters
   const handleResetFilters = (resetFilters) => {
     setFilters(resetFilters);
-    updateFilters(resetFilters);
+    // updateFilters(resetFilters);
     fetchProductsForReports(1, false, resetFilters);
   };
 
